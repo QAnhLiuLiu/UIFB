@@ -1,0 +1,2257 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FarmBot mini – gieo, tưới, phun thuốc</title>
+<style>
+:root{
+  box-sizing:border-box;
+  --bg:#eef3e6; --card:#fbfcf7; --bg2:#f0f4e8; --soil:#b98f63; --line:#9a7449; --ink:#26331f; --muted:#66745a;
+  --accent:#2f7d3a; --warn:#c0392b; --vp1:#e2ecd2; --vp2:#b7cfa0; --shadow:0 1px 3px rgba(0,0,0,.08),0 8px 22px rgba(40,60,30,.10);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){--bg:#161c13;--card:#222b1d;--bg2:#2b3625;--soil:#7a5c3c;--line:#5c4429;--ink:#e8efe0;--muted:#a6b499;--accent:#6cc26f;--vp1:#34412c;--vp2:#222c1d;--shadow:0 1px 3px #0006,0 8px 22px #0004}
+}
+:root[data-theme="dark"]{--bg:#161c13;--card:#222b1d;--bg2:#2b3625;--soil:#7a5c3c;--line:#5c4429;--ink:#e8efe0;--muted:#a6b499;--accent:#6cc26f;--vp1:#34412c;--vp2:#222c1d;--shadow:0 1px 3px #0006,0 8px 22px #0004}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;color:var(--ink);font-family:"Nunito","Segoe UI",system-ui,sans-serif;
+  background:radial-gradient(900px 500px at 10% -10%,rgba(120,180,90,.18),transparent),radial-gradient(800px 500px at 100% 0,rgba(230,190,110,.15),transparent),var(--bg);min-height:100vh}
+
+/* Thanh trên cùng */
+.top{background:linear-gradient(135deg,#1d5a2a,#3d8f43);color:#fff;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;box-shadow:0 3px 14px rgba(20,60,25,.35)}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{font-size:26px;background:#ffffff26;border-radius:12px;width:44px;height:44px;display:flex;align-items:center;justify-content:center}
+.brand b{font-size:18px;letter-spacing:.3px;display:block}.brand small{opacity:.8;font-size:12px}
+.hdr-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:7px;background:#ffffff24;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:700}
+.chip i{width:9px;height:9px;border-radius:50%;background:#7dff8a;box-shadow:0 0 0 3px #7dff8a44}
+.chip.stop{background:#c0392b66}.chip.stop i{background:#ff6b5b;box-shadow:0 0 0 3px #ff6b5b55}
+.clock{font-size:12px;opacity:.85;font-weight:700}
+
+/* Bố cục 3 cột */
+main{display:grid;grid-template-columns:210px minmax(0,1fr) 310px;gap:18px;padding:18px;max-width:1320px;margin:0 auto;align-items:start}
+.col{display:flex;flex-direction:column;gap:16px}
+.card{background:var(--card);border-radius:16px;padding:14px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 10px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:7px}
+@media (max-width:1050px){main{grid-template-columns:1fr}.tools{flex-direction:row!important;flex-wrap:wrap}.plant{flex:1 1 170px}}
+
+/* Chức năng */
+.tools{display:flex;flex-direction:column;gap:8px}
+.plant{--tc:var(--accent);display:flex;align-items:center;gap:10px;padding:9px;border-radius:14px;background:var(--bg2);border:2px solid transparent;cursor:grab;user-select:none;touch-action:none;transition:transform .15s,border-color .15s,box-shadow .15s,background .15s}
+.plant[data-id=sow]{--tc:#2f7d3a}.plant[data-id=water]{--tc:#2f86d6}.plant[data-id=spray]{--tc:#9a52c7}
+.plant:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(0,0,0,.12)}
+.plant .ic{width:46px;height:46px;border-radius:12px;background:color-mix(in srgb,var(--tc) 18%,transparent);display:flex;align-items:center;justify-content:center;font-size:26px;flex:none}
+.plant .tx b{display:block;font-size:14px}.plant .tx small{display:block;font-size:11px;color:var(--muted);line-height:1.25}
+.plant.on{border-color:var(--tc);background:color-mix(in srgb,var(--tc) 12%,var(--card))}
+.counts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.counts div{background:var(--bg2);border-radius:12px;padding:8px 2px}
+.counts b{display:block;font-size:22px}.counts span{font-size:11px;color:var(--muted)}
+.sensors b{font-size:20px;white-space:nowrap}.sensors span{display:block;margin-top:2px;line-height:1.25}
+.sensors b.lo{color:var(--warn)}
+.sensors .st{position:relative;overflow:hidden;transition:transform .2s}
+.sensors .st:hover{transform:translateY(-2px)}
+.sensors .st.pulse{animation:spulse .7s ease-out}
+@keyframes spulse{0%{box-shadow:0 0 0 0 var(--sc,#4a9)}100%{box-shadow:0 0 0 12px transparent}}
+.sensors .soil{--sc:#2f86d6}.sensors .hum{--sc:#7a8fd0}.sensors .temp{--sc:#e0803a}
+.sensors .bar{display:block;height:4px;border-radius:2px;background:#0000001a;margin:8px 8px 4px;overflow:hidden}
+.sensors .bar u{display:block;height:100%;width:0;border-radius:2px;background:var(--sc);transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.sensors .st::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,#ffffff55 50%,transparent 70%);transform:translateX(-120%);pointer-events:none}
+.sensors .st.pulse::before{animation:sshine .9s ease-out}
+@keyframes sshine{to{transform:translateX(120%)}}
+
+/* Khung ruộng */
+.viewport{position:relative;aspect-ratio:1;overflow:hidden;background:radial-gradient(circle at 30% 20%,var(--vp1),var(--vp2));border-radius:14px}
+.map{position:absolute;left:42px;top:34px;width:calc(100% - 64px);height:calc(100% - 56px);transform-origin:center;transition:transform .35s cubic-bezier(.2,.8,.2,1),width .3s,height .3s,left .3s,top .3s}
+.ruler{position:absolute;font-size:11px;font-weight:800;color:var(--ink);opacity:.6;pointer-events:none}
+.ruler span{position:absolute;white-space:nowrap}
+.ruler.top{left:0;right:0;top:-22px}.ruler.top span{transform:translateX(-50%)}
+.ruler.left{top:0;bottom:0;left:-38px;width:32px}.ruler.left span{right:0;transform:translateY(-50%)}
+.grid{position:absolute;inset:0;container-type:inline-size;border-radius:4px;cursor:crosshair;
+  box-shadow:0 0 0 6px #8a5a2b,0 0 0 9px #60391a,0 14px 28px rgba(0,0,0,.30);
+  background-color:var(--soil);
+  background-image:linear-gradient(rgba(60,35,15,.28) 1px,transparent 1px),linear-gradient(90deg,rgba(60,35,15,.28) 1px,transparent 1px),
+    radial-gradient(circle at 20% 30%,rgba(255,255,255,.12) 0 2px,transparent 3px),radial-gradient(circle at 70% 60%,rgba(0,0,0,.12) 0 2px,transparent 3px),
+    radial-gradient(120% 90% at 30% 10%,rgba(255,235,200,.25),transparent 60%);
+  background-size:10% 10%,10% 10%,23px 19px,31px 27px,100% 100%}
+.empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;pointer-events:none;color:#fff;text-shadow:0 1px 6px #0008;animation:float 3s ease-in-out infinite}
+.empty div{font-size:8cqw}.empty b{font-size:3.4cqw}.empty span{font-size:2.4cqw;opacity:.9}
+@keyframes float{50%{transform:translateY(-6px)}}
+.vbtn{width:34px;height:34px;padding:0;border-radius:8px;background:#2f3a2bd9;color:#fff;font-size:18px;line-height:1}
+.vbtn:hover{background:#4a5a44}
+.zoom{position:absolute;top:10px;right:10px;display:flex;flex-direction:column;gap:6px}
+.pan{position:absolute;bottom:10px;right:10px;display:flex;gap:6px;background:#2d3a29cc;padding:6px;border-radius:999px;backdrop-filter:blur(4px)}
+.pan .vbtn{background:#46573f;border-radius:50%}
+.seedlist{max-height:250px;overflow:auto;display:flex;flex-direction:column;gap:5px}
+.seedlist>div{display:flex;justify-content:space-between;align-items:center;gap:6px;background:var(--bg2);border-radius:10px;padding:6px 10px;font-size:12px;animation:spring .4s cubic-bezier(.3,1.6,.5,1)}
+.seedlist b{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--accent)}
+.seedlist small{color:var(--muted);font-weight:700}
+.seedlist .none{margin:0;text-align:center;padding:8px 0}
+.switch{flex-direction:row;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--ink);position:relative}
+.switch input{position:absolute;opacity:0;width:0;height:0;padding:0;border:0}
+.slider{position:relative;width:44px;height:24px;border-radius:999px;background:#9aa595;transition:background .2s;flex:none}
+.slider::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px #0005}
+.switch input:checked+.slider{background:#2f86d6}
+.switch input:checked+.slider::after{transform:translateX(20px)}
+.switch input:focus-visible+.slider{outline:2px solid var(--accent);outline-offset:2px}
+.wetlayer{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .35s}
+.wetlayer.on{opacity:1}
+.wcell{position:absolute;background:rgba(47,134,214,var(--a));border:1px solid rgba(47,134,214,.8);display:flex;align-items:center;justify-content:center;font-size:clamp(9px,1.8cqw,14px);font-weight:800;color:#fff;text-shadow:0 1px 2px #0008}
+.switch input:checked+.slider.purple{background:#9a52c7}
+.wcell.mist{background:rgba(154,82,199,var(--a));border-color:rgba(154,82,199,.9);border-radius:50%;transform:scale(.66)}
+.bluebtn{background:linear-gradient(180deg,#3d97e6,#2571b8)}
+button:disabled{opacity:.6;cursor:progress}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.legend span{background:var(--bg2);border-radius:999px;padding:4px 11px;font-size:12px;color:var(--muted);font-weight:700}
+.hint{font-size:12.5px;color:var(--muted);margin:10px 0 0;line-height:1.5}
+
+/* Cây + vòng lan */
+.plantwrap{position:absolute;width:12cqw;height:12cqw;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;pointer-events:none}
+.spread{position:absolute;inset:0;border-radius:50%;background:rgba(70,45,20,.28);animation:grow .9s cubic-bezier(.2,.8,.2,1)}
+.plantwrap .e{position:relative;font-size:5cqw;animation:spring .55s cubic-bezier(.3,1.6,.5,1)}
+@keyframes grow{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes spring{0%{transform:scale(0)}100%{transform:scale(1)}}
+
+/* Ô đang chờ xác nhận (chưa thực hiện) */
+.pendwrap{position:absolute;width:8cqw;height:8cqw;transform:translate(-50%,-50%);border:2px dashed #fff;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:4cqw;pointer-events:none;box-shadow:0 0 0 2px rgba(0,0,0,.3);animation:pop .3s cubic-bezier(.3,1.6,.5,1)}
+.pendwrap svg{width:4.6cqw;height:4.6cqw}
+.pendwrap .pn{position:absolute;top:-1.8cqw;left:-1.8cqw;min-width:3.8cqw;height:3.8cqw;padding:0 .7cqw;border-radius:999px;background:var(--accent);color:#fff;font-size:2.4cqw;line-height:1;display:flex;align-items:center;justify-content:center;font-weight:800;box-shadow:0 1px 3px #0006}
+.pendwrap.run{border:2px solid #ffd54a;background:rgba(255,213,74,.3);animation:pulse 1s ease-in-out infinite}
+.pendwrap.fail{border:2px solid var(--warn);background:rgba(192,57,43,.3)}
+@keyframes pop{from{transform:translate(-50%,-50%) scale(0)}to{transform:translate(-50%,-50%) scale(1)}}
+@keyframes pulse{50%{transform:translate(-50%,-50%) scale(1.14)}}
+.pendlist{max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:5px}
+.pendlist .pi{display:flex;flex-direction:column;gap:6px;background:var(--bg2);border-radius:10px;padding:6px 8px;font-size:12px;border-left:4px solid var(--accent)}
+.pendlist .ph{display:flex;align-items:center;gap:6px}
+.pendlist .ps{color:var(--muted);font-weight:800;white-space:nowrap}
+.pendlist .pname{flex:1;min-width:0;font-size:12px}
+.pendlist .pc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.pendlist .pc label{flex-direction:row;align-items:center;gap:3px;font-size:11px;font-weight:800}
+.pendlist .pc input{padding:3px 2px;border-radius:7px;font:12px ui-monospace,Consolas,monospace;text-align:center;min-width:0;width:100%;-moz-appearance:textfield;appearance:textfield}
+.pendlist .pc input::-webkit-inner-spin-button,.pendlist .pc input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.pendlist .pc input:disabled{opacity:.55}
+.pendlist .pi.queued{opacity:.75}.pendlist .pi.run{border-left-color:#e6a700;background:color-mix(in srgb,#ffd54a 22%,var(--bg2))}.pendlist .pi.fail{border-left-color:var(--warn)}
+.pendlist .pic{display:flex;width:24px;justify-content:center;font-size:18px;flex:none}.pendlist .pic svg{width:20px;height:20px}
+#pendnone{margin:0;text-align:center;padding:8px 0}
+#psort,#pclear{font-size:12px;padding:8px 4px;white-space:nowrap}
+.pdel{width:auto!important;padding:3px 9px!important;font-size:12px;line-height:1.2}
+
+/* Tưới / phun */
+.fx{position:absolute;width:18cqw;height:18cqw;transform:translate(-50%,-50%);pointer-events:none}
+.fx i{position:absolute;inset:0;border-radius:50%;border:2px solid var(--c);background:var(--c2);animation:ring 1.3s ease-out infinite;opacity:0}
+.fx i:nth-child(2){animation-delay:.43s}.fx i:nth-child(3){animation-delay:.86s}
+.fx.wet{--c:rgba(59,143,217,.9);--c2:rgba(59,143,217,.25)}
+.fx.mist{--c:rgba(150,80,200,.85);--c2:rgba(150,80,200,.22)}
+.fx.leave i{animation:none;opacity:0}
+.fx.leave::after{content:"";position:absolute;inset:12%;border-radius:50%;background:var(--c2);animation:dry 5s ease-out forwards}
+@keyframes ring{0%{transform:scale(.15);opacity:.9}100%{transform:scale(1);opacity:0}}
+@keyframes dry{from{opacity:1}to{opacity:0}}
+
+/* Bot */
+.bot{position:absolute;width:max(14px,5cqw);height:max(14px,5cqw);border:3px solid var(--warn);border-radius:5px;background:rgba(192,57,43,.25);
+  transform:translate(-50%,-50%) scale(1);transition:left .9s cubic-bezier(.45,.05,.25,1),top .9s cubic-bezier(.45,.05,.25,1),transform .3s,background .3s,box-shadow .3s;pointer-events:none;left:0;top:0;box-shadow:0 2px 6px #0004}
+.bot.down{transform:translate(-50%,-50%) scale(.6);background:var(--warn);box-shadow:0 0 0 #0000}
+
+/* Biểu tượng khi kéo */
+.ghost{position:fixed;left:0;top:0;z-index:50;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.92;will-change:transform}
+.ghost .ic{font-size:36px;display:flex;filter:drop-shadow(0 5px 6px #0006);transition:transform .15s}
+.ghost svg{width:38px;height:38px}
+.ghost.ok .ic{transform:scale(1.18)}
+.ghost .tag{background:#000b;color:#fff;border-radius:4px;padding:1px 6px;font-size:12px;min-height:18px}
+
+/* Camera + bảng thông số */
+.cam{position:relative;aspect-ratio:4/3;background:linear-gradient(135deg,#1b1f1a,#0d100c);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.cam video,.cam img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cam p{position:absolute;inset:0;margin:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;color:#9aa595;font-size:13px}
+.cam canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#aistatus[data-k=ok]{color:var(--accent)}#aistatus[data-k=err]{color:var(--warn)}
+.airow{display:grid;grid-template-columns:1fr auto;gap:8px}.airow button{width:auto;padding:8px 14px}
+.stack{display:flex;flex-direction:column;gap:8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px;font-weight:700}
+input,select,button{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid color-mix(in srgb,var(--line) 45%,transparent);background:var(--bg2);color:var(--ink);width:100%}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{background:linear-gradient(180deg,#3a9646,#2b7a37);color:#fff;border:0;font-weight:800;cursor:pointer;transition:filter .15s,transform .1s}
+button:hover{filter:brightness(1.08)}button:active{transform:scale(.98)}
+button.ghostbtn{background:var(--bg2);color:var(--ink);border:1px solid color-mix(in srgb,var(--line) 40%,transparent)}
+.estop{width:auto;background:linear-gradient(180deg,#e04b3a,#b5301f);padding:9px 20px;letter-spacing:.6px;box-shadow:0 0 0 3px #ffffff33,0 4px 12px #0005;animation:glow 2.4s infinite}
+.estop.resume{background:linear-gradient(180deg,#3a9646,#2b7a37);animation:none}
+@keyframes glow{50%{box-shadow:0 0 0 6px #ff6b5b33,0 4px 12px #0005}}
+.coordbox{text-align:center;background:var(--bg2);border-radius:12px;padding:10px}
+.coordbox span{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.08em}
+.coords{font-size:30px;font-weight:900;font-family:ui-monospace,Consolas,monospace;color:var(--accent)}
+.xyz{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.xyz div{background:var(--bg2);border-radius:12px;padding:8px;text-align:center}
+.xyz span{display:block;font-size:11px;color:var(--muted);font-weight:800}.xyz b{font-size:20px;font-family:ui-monospace,Consolas,monospace}
+#log{margin:0;background:#101a11;color:#9be7a5;padding:10px;border-radius:12px;font:12px/1.55 ui-monospace,Consolas,monospace;height:170px;overflow:auto;white-space:pre-wrap}
+/* Chân trang */
+.foot{margin-top:28px;background:linear-gradient(135deg,#17472200,#173d20);background-color:#1b4a26;color:#e6f0df;padding:26px 20px 14px}
+.foot-in{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:24px}
+.foot h4{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#a9d6a0}
+.foot p,.foot li{font-size:13px;line-height:1.6;margin:0;color:#d3e4cc}
+.foot ul{margin:0;padding-left:18px}
+.foot a{color:#9be7a5}
+.foot .fbrand{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-weight:800;font-size:17px;color:#fff}
+.foot-bar{max-width:1320px;margin:20px auto 0;padding-top:12px;border-top:1px solid #ffffff22;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:#b8d2b0}
+/* Trạng thái "đang chạy" trên thanh trên cùng */
+.chip.run{background:#ffd54a33}.chip.run i{background:#ffd54a;box-shadow:0 0 0 3px #ffd54a55;animation:blink 1s ease-in-out infinite}
+@keyframes blink{50%{opacity:.35}}
+/* Bàn phím: thấy rõ đang đứng ở nút nào */
+button:focus-visible,.plant:focus-visible{outline:3px solid #ffd54a;outline-offset:2px}
+/* Nhật ký có màu */
+#log .le{color:#ff9b8c}#log .lh{color:#fff;font-weight:700}#log .lq{color:#9fd4ff}
+/* Thông báo nổi */
+.toasts{position:fixed;top:76px;right:18px;z-index:60;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:min(360px,calc(100vw - 32px))}
+.toast{background:#2e1713;color:#ffdcd5;border-left:4px solid var(--warn);padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.45;box-shadow:0 8px 22px #0005;animation:toastin .3s cubic-bezier(.2,.8,.2,1);transition:opacity .3s,transform .3s}
+.toast.ok{background:#13281a;color:#cdf3d2;border-left-color:#4caf50}
+.toast.out{opacity:0;transform:translateX(24px)}
+@keyframes toastin{from{opacity:0;transform:translateX(30px)}}
+
+/* Chức năng FarmBot (chỉ di chuyển / dò ảnh) */
+.plant[data-id=move]{--tc:#46617a}
+.botpanel{margin-top:10px;padding:10px;border-radius:12px;background:color-mix(in srgb,#46617a 12%,var(--bg2));border:1px dashed color-mix(in srgb,#46617a 55%,transparent);font-size:13px;animation:msgin .25s ease-out}
+.scanbtn{background:linear-gradient(180deg,#56748f,#3d5872)}
+.scanbtn.on{background:linear-gradient(180deg,#e04b3a,#b5301f)}
+.scanprog{height:6px;border-radius:3px;background:#0000001f;margin-top:8px;overflow:hidden}
+.scanprog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ffd54a,#e6a700);transition:width .4s}
+/* Đường dò hình con rắn trên ruộng: nét đứt = cả lộ trình, nét vàng = đoạn đã đi */
+.scanpath{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;transition:opacity 1s}
+.scanpath.fade{opacity:0}
+.scanpath polyline{fill:none;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+#scanall{stroke:rgba(255,255,255,.6);stroke-width:2;stroke-dasharray:6 6;animation:dash 1s linear infinite}
+#scandone{stroke:#ffd54a;stroke-width:4;filter:drop-shadow(0 0 3px #ffd54a)}
+@keyframes dash{to{stroke-dashoffset:-12}}
+/* Cảnh báo đỏ khi camera thấy cỏ dại / sâu bệnh */
+.aialert{position:fixed;top:72px;left:50%;transform:translateX(-50%);z-index:58;display:flex;align-items:center;gap:12px;
+  width:min(620px,calc(100vw - 24px));padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,#d63a2a,#a82012);color:#fff;
+  box-shadow:0 10px 30px rgba(170,30,20,.45),0 0 0 3px #ff8a7a66;animation:alertin .35s cubic-bezier(.2,.8,.2,1),alertglow 1.4s ease-in-out infinite}
+.aialert .ai-ic{font-size:26px;animation:shake 1.2s ease-in-out infinite}
+.aialert .ai-tx{flex:1;min-width:0}.aialert b{display:block;font-size:15px}.aialert small{opacity:.92;font-size:12.5px}
+.aialert button{width:auto;flex:none}
+.aialert .ai-btn{background:#fff;color:#a82012;padding:7px 12px}
+.aialert .ai-x{background:#ffffff2e;padding:6px 10px}
+@keyframes alertin{from{opacity:0;transform:translate(-50%,-14px)}}
+@keyframes alertglow{50%{box-shadow:0 10px 30px rgba(170,30,20,.45),0 0 0 7px #ff8a7a33}}
+@keyframes shake{0%,100%{transform:rotate(0)}20%{transform:rotate(-12deg)}40%{transform:rotate(10deg)}60%{transform:rotate(-6deg)}}
+.cam.alert{box-shadow:0 0 0 3px #e0402f,0 0 18px #e0402f99;animation:camalert 1s ease-in-out infinite}
+@keyframes camalert{50%{box-shadow:0 0 0 3px #e0402f,0 0 4px #e0402f55}}
+/* Ô nên gieo + cỏ dại trên bản đồ */
+.sugglayer,.weedlayer{position:absolute;inset:0;pointer-events:none}
+.sugglayer.off{display:none}
+.sugg{position:absolute;width:6cqw;height:6cqw;transform:translate(-50%,-50%);border:2px dashed #e9ffd9;border-radius:50%;background:rgba(80,170,70,.22);
+  pointer-events:auto;cursor:pointer;animation:breathe 2.6s ease-in-out infinite;display:flex;align-items:center;justify-content:center;font-size:2.4cqw;color:#fff;font-weight:900}
+.sugg:hover{background:rgba(80,170,70,.5)}
+@keyframes breathe{50%{transform:translate(-50%,-50%) scale(1.1);opacity:.75}}
+.weed{position:absolute;width:7cqw;height:7cqw;transform:translate(-50%,-50%);border:2px solid #ff4b3a;border-radius:50%;background:rgba(214,58,42,.32);
+  pointer-events:auto;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:3.2cqw;animation:pop .3s cubic-bezier(.3,1.6,.5,1)}
+.weed::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid #ff4b3a;animation:ring 1.6s ease-out infinite}
+.weed.done{border-color:#9a52c7;background:rgba(154,82,199,.28);opacity:.7}.weed.done::after{display:none}
+/* Thẻ đề xuất */
+.suggrow{display:grid;grid-template-columns:150px 1fr;gap:12px;margin:12px 0 10px}
+.suggbtn{background:linear-gradient(180deg,#e0b43a,#c4921c);color:#2b2208}
+.suggbtn.open{background:var(--bg2);color:var(--ink);border:1px solid color-mix(in srgb,var(--line) 40%,transparent)}
+.suggsum{align-self:end;font-size:12.5px;line-height:1.5;color:var(--muted);background:var(--bg2);border-radius:10px;padding:7px 10px}
+.suggsum b{color:var(--ink)}
+.scell{position:absolute;border:1.5px dashed rgba(220,255,200,.75);background:rgba(90,180,70,.14);border-radius:4px;pointer-events:none;animation:msgin .3s ease-out}
+.scell.used{border-color:rgba(255,255,255,.18);background:rgba(0,0,0,.06)}
+.sugglist{display:flex;flex-direction:column;gap:8px}
+.sg{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:var(--bg2);border-left:4px solid var(--sc,var(--accent));animation:msgin .3s ease-out}
+.sg .si{font-size:22px;flex:none}.sg .st2{flex:1;min-width:0;font-size:13px;line-height:1.4}.sg .st2 small{display:block;color:var(--muted);font-size:12px}
+.sg button{width:auto;flex:none;padding:7px 12px;font-size:12.5px}
+.sg.warn{--sc:#d63a2a;background:color-mix(in srgb,#d63a2a 9%,var(--bg2))}.sg.water{--sc:#2f86d6}.sg.sow{--sc:#2f7d3a}.sg.scan{--sc:#46617a}.sg.info{--sc:#c9a227}
+@media (max-width:560px){.suggrow{grid-template-columns:1fr}.sg{flex-wrap:wrap}}
+
+/* Trợ lý chat */
+.chatfab{position:fixed;right:20px;bottom:20px;z-index:45;width:60px;height:60px;padding:0;border-radius:50%;font-size:27px;box-shadow:0 8px 22px rgba(20,60,25,.45);overflow:visible}
+.chatfab:hover{transform:scale(1.06)}
+.chatfab b{position:absolute;top:-3px;right:-3px;min-width:21px;height:21px;padding:0 6px;border-radius:999px;background:var(--warn);font-size:11px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--card)}
+.chatfab.ping::after{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid #4caf50;animation:fabping 1.6s ease-out infinite;pointer-events:none}
+@keyframes fabping{from{transform:scale(1);opacity:.9}to{transform:scale(1.7);opacity:0}}
+.chat{position:fixed;right:20px;bottom:92px;z-index:46;width:390px;max-width:calc(100vw - 32px);height:min(600px,calc(100vh - 120px));display:flex;flex-direction:column;background:var(--card);border-radius:18px;box-shadow:0 18px 50px rgba(0,0,0,.3);overflow:hidden;animation:chatin .28s cubic-bezier(.2,.8,.2,1);transform-origin:bottom right}
+@keyframes chatin{from{opacity:0;transform:translateY(14px) scale(.95)}}
+.chathead{display:flex;align-items:center;gap:10px;padding:12px 14px;background:linear-gradient(135deg,#1d5a2a,#3d8f43);color:#fff}
+.chathead .av{width:38px;height:38px;border-radius:12px;background:#ffffff26;display:flex;align-items:center;justify-content:center;font-size:21px;flex:none}
+.chathead b{display:block;font-size:15px}.chathead small{opacity:.85;font-size:11.5px}
+.chathead button{width:32px;height:32px;padding:0;margin-left:auto;background:#ffffff26;border-radius:10px;flex:none}
+.chatlog{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--bg)}
+.msg{max-width:88%;padding:9px 12px;border-radius:14px;font-size:13.5px;line-height:1.5;animation:msgin .25s ease-out;overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:4px}
+.msg.ai{align-self:flex-start;background:var(--card);box-shadow:var(--shadow);border-bottom-left-radius:4px}
+.msg code{font-family:ui-monospace,Consolas,monospace;background:var(--bg2);padding:0 4px;border-radius:4px;font-size:12.5px}
+.msg ul{margin:4px 0 0;padding-left:18px}.msg li{margin:2px 0}
+@keyframes msgin{from{opacity:0;transform:translateY(6px)}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.chip2{width:auto;padding:5px 11px;font-size:12px;font-weight:700;border-radius:999px;background:var(--bg2);color:var(--accent);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+.chip2:hover{background:color-mix(in srgb,var(--accent) 16%,var(--bg2))}
+.typing span{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;background:var(--muted);animation:dot 1s infinite}
+.typing span:nth-child(2){animation-delay:.15s}.typing span:nth-child(3){animation-delay:.3s}
+@keyframes dot{50%{transform:translateY(-4px);opacity:.4}}
+.chatform{display:flex;gap:6px;padding:10px;border-top:1px solid color-mix(in srgb,var(--line) 25%,transparent);background:var(--card)}
+.chatform input{flex:1;min-width:0;border-radius:999px;padding:9px 14px}
+.chatform button{width:40px;height:40px;padding:0;border-radius:50%;flex:none;font-size:16px}
+#chatmic{background:var(--bg2);color:var(--ink);border:1px solid color-mix(in srgb,var(--line) 40%,transparent)}
+#chatmic.on{background:var(--warn);color:#fff;animation:glow 1.2s infinite}
+@media (max-width:560px){.chat{left:8px;right:8px;width:auto;max-width:none;bottom:88px;height:calc(100vh - 110px)}.chatfab{right:14px;bottom:14px}}
+@media (prefers-reduced-motion: reduce){*{animation-duration:.01s!important;transition-duration:.01s!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">🌱</span><div><b>FarmBot Mini</b><small>Farm Designer · điều khiển ruộng</small></div></div>
+  <div class="hdr-right">
+    <span class="chip" id="state"><i></i><b id="statetxt">Sẵn sàng</b></span>
+    <span class="chip"><b id="mode">Mô phỏng</b></span>
+    <span class="clock" id="clock"></span>
+    <button id="estop" class="estop">E-STOP</button>
+  </div>
+</header>
+<main>
+  <aside class="col">
+    <section class="card"><h3>🧰 Chức năng</h3><div class="tools" id="plants"></div>
+      <div class="botpanel" id="botpanel" hidden>
+        <b>🤖 Điều khiển FarmBot</b>
+        <p class="hint" style="margin:4px 0 8px">Chỉ di chuyển bot để camera dò ảnh, <b>không</b> tác động tới cây.</p>
+        <p class="hint" style="margin:0 0 8px">① Bấm vào ruộng để chọn điểm muốn tới.</p>
+        <div class="two">
+          <label>Cỡ ô dò (mm)<input id="scancell" type="number" min="5" step="5" placeholder="= ô lưới" title="Để trống = bằng ô lưới đang vẽ trên ruộng"></label>
+          <label>Dừng mỗi ô (giây)<input id="scanwait" type="number" min="0.2" step="0.1" value="0.5"></label>
+        </div>
+        <button id="scanbtn" class="scanbtn" style="margin-top:8px" title="Bot tự chạy hình con rắn khắp ruộng, dừng ở từng điểm cho camera nhận diện">🐍 ② Dò toàn ruộng</button>
+        <div class="scanprog" id="scanprog" hidden><i id="scanbar"></i></div>
+        <p class="hint" id="scaninfo" style="margin:6px 0 0"></p>
+      </div>
+    </section>
+    <section class="card"><h3>⏳ Hàng chờ thực hiện</h3>
+      <div class="pendlist" id="pendlist"></div>
+      <p class="hint" id="pendnone">Chưa có ô nào đang chờ. Bấm vào ruộng để thêm vào đây.</p>
+      <p class="hint" style="margin:8px 0 0">Sửa trực tiếp X, Y, Z (mm) của từng ô. Z mặc định 0; Z âm = hạ xuống (độ sâu).</p>
+      <div class="stack" style="margin-top:10px">
+        <button id="pconfirm" title="Xác nhận: gửi lệnh cho bot thực hiện lần lượt các ô đang chờ">✅ Xác nhận (0)</button>
+        <div class="two"><button id="psort" class="ghostbtn" title="Sắp xếp theo đường đi gần nhất để bot đỡ chạy vòng">↕ Sắp xếp</button><button id="pclear" class="ghostbtn" title="Xóa toàn bộ hàng chờ">🗑 Xóa hết</button></div>
+      </div>
+    </section>
+    <section class="card"><h3>📊 Đã thực hiện</h3>
+      <div class="counts">
+        <div><b id="c-sow">0</b><span>Gieo</span></div>
+        <div><b id="c-wet">0</b><span>Tưới</span></div>
+        <div><b id="c-mist">0</b><span>Phun</span></div>
+      </div>
+    </section>
+    <section class="card"><h3>🗺️ Lớp hiển thị</h3>
+      <label class="switch"><input type="checkbox" id="wetshow"><span class="slider"></span><span>💧 Ô đã tưới</span></label>
+      <p class="hint" id="wetcount" style="margin:4px 0 12px">Đã tưới: 0 ô</p>
+      <label class="switch"><input type="checkbox" id="mistshow"><span class="slider purple"></span><span>🧴 Ô đã phun thuốc</span></label>
+      <p class="hint" id="mistcount" style="margin:4px 0 0">Đã phun: 0 ô</p>
+    </section>
+    <section class="card"><h3>📍 Hạt đã gieo</h3>
+      <div class="seedlist" id="seeds"></div>
+      <div class="stack" style="margin-top:10px">
+        <button id="autowater" class="bluebtn">💧 Tưới tự động</button>
+        <label class="switch" style="font-size:12px"><input type="checkbox" id="skipwet"><span class="slider"></span><span>Bỏ qua cây ở ô đã tưới</span></label>
+        <button id="seedcopy" class="ghostbtn">Sao chép tọa độ</button>
+      </div>
+    </section>
+  </aside>
+  <div class="col" style="min-width:0">
+  <section class="card board">
+    <div class="viewport" id="vp">
+      <div class="map" id="map">
+        <div class="ruler top" id="rtop"></div><div class="ruler left" id="rleft"></div>
+        <div class="grid" id="grid">
+          <div class="wetlayer" id="wetlayer"></div>
+          <div class="wetlayer" id="mistlayer"></div>
+          <div class="sugglayer" id="sugglayer"></div>
+          <div class="weedlayer" id="weedlayer"></div>
+          <svg class="scanpath" id="scanpath" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <polyline id="scanall" points=""></polyline><polyline id="scandone" points=""></polyline>
+          </svg>
+          <div class="empty" id="empty"><div>🌱</div><b>Ruộng đang trống</b><span>Kéo “Gieo hạt” vào đây để bắt đầu</span></div>
+          <div class="bot" id="bot"></div>
+        </div>
+      </div>
+      <div class="zoom">
+        <button class="vbtn" id="zin" aria-label="Phóng to">+</button>
+        <button class="vbtn" id="zout" aria-label="Thu nhỏ">−</button>
+      </div>
+      <div class="pan">
+        <button class="vbtn" data-pan="l" aria-label="Sang trái">←</button>
+        <button class="vbtn" data-pan="d" aria-label="Xuống">↓</button>
+        <button class="vbtn" data-pan="u" aria-label="Lên">↑</button>
+        <button class="vbtn" data-pan="r" aria-label="Sang phải">→</button>
+        <button class="vbtn" id="zreset" aria-label="Về vị trí ban đầu">⟲</button>
+      </div>
+    </div>
+    <div class="legend"><span>⏳ Đang chờ</span><span>🥬 Đã gieo</span><span style="color:#2f86d6">◯ Đã tưới</span><span style="color:#9a52c7">◯ Đã phun</span><span style="color:#c0392b">▢ Bot</span><span style="color:#2f7d3a">◌ Nên gieo</span><span style="color:#d63a2a">⚠ Cỏ dại</span><span>Thước: mm</span></div>
+    <p class="hint">Kéo một chức năng thả vào ruộng (dùng được cả trên điện thoại), hoặc bấm chọn chức năng rồi bấm vào ruộng: ô sẽ được <b>thêm vào hàng chờ</b>, chưa chạy ngay. Kiểm tra hàng chờ rồi bấm <b>"Xác nhận"</b> để bot chạy lần lượt. Cuộn chuột để phóng to, dùng các nút mũi tên để di chuyển khung nhìn. Khi chưa chọn chức năng, bấm ruộng chỉ để xem tọa độ (x, y, z); bấm vào vòng <b>◌ nên gieo</b> để thêm ô gieo, bấm vào <b>⚠ cỏ dại</b> để thêm ô phun thuốc.</p>
+  </section>
+    <section class="card"><h3>💡 Đề xuất</h3>
+      <button id="suggbtn" class="suggbtn">💡 Đề xuất ô gieo &amp; việc nên làm</button>
+      <div id="suggbody" hidden>
+        <div class="suggrow">
+          <label>Khoảng cách cây (mm)<input id="sowgap" type="number" min="20" step="10" value="100"></label>
+          <div class="suggsum" id="suggsum"></div>
+        </div>
+        <div class="sugglist" id="sugglist"></div>
+      </div>
+    </section>
+    <section class="card aicard"><h3>🧠 Mô hình nhận diện</h3>
+      <div class="stack">
+        <div class="airow"><input id="aiurl" aria-label="Địa chỉ server nhận diện" placeholder="http://127.0.0.1:8001" spellcheck="false"><button id="aiconnect" class="ghostbtn">Kết nối</button></div>
+        <label>Model<select id="aimodel"><option value="">(chưa kết nối server)</option></select></label>
+        <button id="aiload">Tải model</button>
+        <div class="two">
+          <label>Ngưỡng tin cậy: <b id="aithrv">0.15</b><input id="aithr" type="range" min="5" max="90" step="5" value="15" style="padding:0"></label>
+          <label>Độ phân giải<select id="aisize"><option value="352">352 · nhanh</option><option value="480" selected>480</option><option value="640">640</option><option value="704">704 · chính xác</option></select></label>
+        </div>
+        <label class="switch"><input type="checkbox" id="aion" checked><span class="slider"></span><span>Tự nhận diện khi bật camera</span></label>
+        <p class="hint" id="aistatus" style="margin:0">Chưa kết nối server nhận diện</p>
+        <div class="counts">
+          <div><b id="ai-let">–</b><span>Xà lách</span></div>
+          <div><b id="ai-weed">–</b><span>Cỏ dại</span></div>
+          <div><b id="ai-fps">–</b><span>khung/giây</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <aside class="col">
+    <section class="card"><h3>📷 Camera thực tế</h3>
+      <div class="cam">
+        <video id="cam" autoplay playsinline muted hidden></video>
+        <img id="camimg" alt="Luồng camera" hidden>
+        <p id="camhint">Chưa bật camera</p>
+        <canvas id="camov"></canvas>
+      </div>
+      <div class="stack">
+        <select id="camsel" aria-label="Chọn camera"></select>
+        <input id="camurl" placeholder="hoặc URL luồng MJPEG, vd http://192.168.1.50:8080/video">
+        <button id="camtoggle">Bật camera</button>
+      </div>
+    </section>
+    <section class="card"><h3>🌡️ Cảm biến</h3>
+      <div class="counts sensors">
+        <div class="st soil"><b id="s-soil">–</b><span>💧 Độ ẩm đất</span><i class="bar"><u id="b-soil"></u></i></div>
+        <div class="st hum"><b id="s-hum">–</b><span>☁️ Độ ẩm không khí</span><i class="bar"><u id="b-hum"></u></i></div>
+        <div class="st temp"><b id="s-temp">–</b><span>🌡️ Nhiệt độ</span><i class="bar"><u id="b-temp"></u></i></div>
+      </div>
+      <p class="hint" id="s-note" style="margin:8px 0 0">Đang chờ dữ liệu cảm biến…</p>
+    </section>
+    <section class="card"><h3>🤖 Trạng thái bot</h3>
+      <div class="coordbox"><span>Tọa độ vừa chọn</span><div class="coords" id="out">x–y–</div></div>
+      <div class="xyz"><div><span>X</span><b id="sx">0</b></div><div><span>Y</span><b id="sy">0</b></div><div><span>Z</span><b id="sz">0</b></div></div>
+    </section>
+    <section class="card"><h3>⚙️ Cài đặt</h3>
+      <div class="stack">
+        <div class="two">
+          <label>Chiều dài – trục X (mm)<input id="size" type="number" min="50" step="10" value="300"></label>
+          <label>Chiều rộng – trục Y (mm)<input id="sizey" type="number" min="50" step="10" value="300"></label>
+        </div>
+        <label>Gốc tọa độ (0,0)<select id="origin"><option value="tl">Trên trái</option><option value="bl">Dưới trái</option></select></label>
+        <label>Độ sâu gieo mặc định – Z hạ xuống (mm)<input id="depth" type="number" min="0" step="1" value="0"></label>
+        <label>Camera nhìn rộng trên mặt đất (mm)<input id="camfov" type="number" min="0" step="10" value="100" title="Bề ngang vùng đất camera (gắn trên bot, nhìn thẳng xuống) thấy được. Dùng để tính vị trí cỏ dại từ ảnh. 0 = lấy luôn vị trí bot."></label>
+        <div class="two">
+          <label>Tưới (giây)<input id="wsec" type="number" min="0.5" step="0.5" value="2"></label>
+          <label>Phun thuốc (giây)<input id="psec" type="number" min="0.5" step="0.5" value="1"></label>
+        </div>
+      </div>
+    </section>
+    <section class="card"><h3>🧾 Nhật ký lệnh</h3>
+      <pre id="log"></pre>
+      <div class="stack" style="margin-top:10px"><button id="clear" class="ghostbtn">Xóa dấu vết trên bản đồ</button></div>
+    </section>
+  </aside>
+</main>
+<footer class="foot">
+  <div class="foot-in">
+    <div>
+      <div class="fbrand"><span class="logo" style="width:36px;height:36px;font-size:20px">🌱</span>FarmBot Mini</div>
+      <p>Bản mô phỏng giao diện điều khiển ruộng: gieo hạt, tưới nước và phun thuốc theo tọa độ. Lấy cảm hứng từ Farm Designer của <a href="https://docs.farm.bot" target="_blank" rel="noopener">FarmBot</a> (dự án cá nhân, không phải sản phẩm chính thức).</p>
+    </div>
+    <div>
+      <h4>Hướng dẫn nhanh</h4>
+      <ul>
+        <li>Kéo chức năng thả vào ruộng, hoặc bấm chọn rồi bấm vào ruộng.</li>
+        <li>Cuộn chuột để phóng to, dùng mũi tên để di chuyển khung nhìn.</li>
+        <li>Bật công tắc ở "Lớp hiển thị" để xem ô đã tưới, đã phun.</li>
+        <li>Bấm 💬 (hoặc phím /) để ra lệnh bằng chữ hay giọng nói, vd "tưới tất cả cây".</li>
+        <li>Phím Esc: bỏ chọn chức năng / đóng trợ lý.</li>
+      </ul>
+    </div>
+    <div>
+      <h4>An toàn</h4>
+      <ul>
+        <li>Nút E-STOP trên trang chỉ là bổ sung, cần có nút dừng khẩn cấp vật lý.</li>
+        <li>Thử từng lệnh với động cơ tháo khỏi cơ cấu trước khi chạy thật.</li>
+        <li>Không mở server điều khiển ra internet khi chưa có xác thực.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot-bar">
+    <span>© <span id="year"></span> FarmBot Mini</span>
+    <span>Chế độ: <b id="fmode">Mô phỏng</b> · Lưới <b id="fcell"></b> mm/ô · đơn vị mm</span>
+  </div>
+</footer>
+<div class="ghost" id="ghost" hidden><span class="ic"></span><b class="tag"></b></div>
+<div class="toasts" id="toasts" aria-live="assertive"></div>
+<div class="aialert" id="aialert" hidden role="alert">
+  <span class="ai-ic">⚠️</span>
+  <div class="ai-tx"><b id="aialert-t">Phát hiện cỏ dại</b><small id="aialert-s"></small></div>
+  <button id="aialert-spray" class="ai-btn" hidden>🧴 Phun thuốc</button>
+  <button id="aialert-x" class="ai-x" aria-label="Ẩn cảnh báo">✕</button>
+</div>
+<button id="chatfab" class="chatfab" aria-label="Mở trợ lý ra lệnh" title="Trợ lý ra lệnh (phím /)">💬<b id="chatbadge" hidden>1</b></button>
+<section id="chat" class="chat" hidden aria-label="Trợ lý ra lệnh">
+  <div class="chathead"><span class="av">🤖</span><div><b>Trợ lý FarmBot</b><small>Gõ lệnh tiếng Việt, có dấu hay không dấu đều được</small></div><button id="chatclose" aria-label="Đóng trợ lý">✕</button></div>
+  <div id="chatlog" class="chatlog" aria-live="polite"></div>
+  <form id="chatform" class="chatform" autocomplete="off">
+    <button type="button" id="chatmic" hidden aria-label="Nói lệnh bằng giọng" title="Nói lệnh (tiếng Việt)">🎤</button>
+    <input id="chatin" aria-label="Nhập lệnh" placeholder="vd: tưới x100 y150 · dò toàn ruộng · đề xuất">
+    <button id="chatsend" aria-label="Gửi">➤</button>
+  </form>
+</section>
+<script>
+// ===== Cấu hình =====
+const BOT_URL = '';   // để trống = chỉ mô phỏng. Điền địa chỉ server, vd 'http://raspberrypi.local:8000/command'
+const PINS = { vacuum: 9, water: 8, pesticide: 10 };  // số chân: đổi theo phần cứng của bạn
+const CAN = '<svg viewBox="0 0 32 32" width="28" height="28"><path d="M6 12h14v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z" fill="#3b8fd9"/><path d="M20 15l8-5" stroke="#3b8fd9" stroke-width="3" stroke-linecap="round"/><path d="M8 12c0-5 10-5 10 0" fill="none" stroke="#3b8fd9" stroke-width="2"/></svg>';
+const TOOLS = [
+  { id:'sow',   n:'Gieo hạt',   icon:'🥬', d:'Hạ Z, nhả hạt xuống đất' },
+  { id:'water', n:'Tưới nước',  icon:CAN, d:'Mở van nước tại điểm này' },
+  { id:'spray', n:'Phun thuốc', icon:'🧴', d:'Bật bơm thuốc trừ sâu' },
+  { id:'move',  n:'FarmBot',    icon:'🤖', d:'Chỉ di chuyển bot để dò ảnh, không tác động cây' }
+];
+// ĐƠN VỊ: tất cả tọa độ, kích thước, độ sâu đều tính bằng mm (giống firmware FarmBot)
+
+const $ = id => document.getElementById(id);
+const grid = $('grid'), bot = $('bot'), vp = $('vp'), map = $('map');
+let current = null;
+let halted = false;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const wait = ms => BOT_URL ? Promise.resolve() : sleep(ms);
+// E-STOP an toàn: mỗi lần dừng khẩn cấp tăng haltSeq. Lượt chạy nào bắt đầu TRƯỚC lần dừng đó sẽ không gửi thêm
+// lệnh di chuyển / bật van nào nữa, kể cả khi người dùng bấm TIẾP TỤC ngay sau đó (lệnh tắt van, tắt bơm vẫn được gửi).
+let haltSeq = 0, runSeq = 0;
+function guard(){ if (halted || runSeq !== haltSeq) throw new Error('Đã dừng khẩn cấp'); }
+async function holdFor(ms){
+  const end = Date.now() + ms;
+  while (Date.now() < end){
+    guard();
+    await sleep(Math.min(100, end - Date.now()));
+  }
+  guard();
+}
+const size = () => +$('size').value || 300;    // chiều dài (trục X), mm
+const sizeY = () => +$('sizey').value || 300;  // chiều rộng (trục Y), mm
+const CELL = 10;                               // mm: ô ghi nhận đã tưới / đã phun
+// Khoảng cách đường lưới vẽ trên ruộng (mm): số tròn, không quá ~16 ô theo cạnh dài (300 mm -> lưới 20 mm)
+const gridStep = () => [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000].find(s => Math.max(size(), sizeY()) / s <= 16) || 1000;
+const isTL = () => $('origin').value === 'tl';
+// Nhật ký có màu: "!" = lỗi/cảnh báo (kèm thông báo nổi), "===/---" = tiêu đề, "+/~" = thay đổi hàng chờ
+function log(t){
+  const l = $('log'), s = document.createElement('span');
+  s.className = t[0] === '!' ? 'le' : /^(===|---)/.test(t) ? 'lh' : /^[+~]/.test(t) ? 'lq' : '';
+  s.textContent = t + '\n'; l.appendChild(s);
+  while (l.childNodes.length > 600) l.removeChild(l.firstChild);
+  l.scrollTop = l.scrollHeight;
+  if (t[0] === '!') toast(t.replace(/^!+\s*/, ''), 'err');
+}
+function toast(msg, kind){
+  const box = $('toasts'); if (!box) return;
+  const d = document.createElement('div');
+  d.className = 'toast' + (kind === 'ok' ? ' ok' : ''); d.textContent = msg;
+  box.appendChild(d);
+  while (box.children.length > 3) box.firstChild.remove();
+  setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 350); }, 4200);
+}
+// Nhớ cài đặt giữa các lần mở trang (chỉ lưu trong trình duyệt này).
+// Kích thước ruộng KHÔNG lưu: mỗi lần mở trang luôn là 300 × 300 mm (30 × 30 cm). Khóa "fb_set2_" vì đơn vị đã đổi sang mm.
+const SETTINGS = ['origin', 'depth', 'wsec', 'psec', 'skipwet', 'camfov', 'scancell', 'scanwait', 'sowgap'];
+SETTINGS.forEach(id => {
+  const e = $(id), key = 'fb_set2_' + id, chk = e.type === 'checkbox';
+  try { const v = localStorage.getItem(key); if (v !== null){ if (chk) e.checked = v === '1'; else e.value = v; } } catch(err){}
+  const save = () => { try { localStorage.setItem(key, chk ? (e.checked ? '1' : '0') : e.value); } catch(err){} };
+  e.addEventListener('input', save); e.addEventListener('change', save);
+});
+log(BOT_URL ? 'Kết nối bot: ' + BOT_URL : 'Chế độ mô phỏng (chưa nối bot thật)');
+
+// ===== Tọa độ (đã tính cả zoom/di chuyển vì dùng getBoundingClientRect) =====
+function point(e){
+  const r = grid.getBoundingClientRect();
+  const fx = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+  const fy = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+  return { fx, fy, x: Math.round(fx*size()), y: Math.round((isTL()?fy:1-fy)*sizeY()) };
+}
+// Z của từng chức năng: gieo hạt = hạ xuống độ sâu gieo (âm), tưới / phun = ở độ cao 0; chưa chọn chức năng = 0
+const zFor = tool => (tool && tool.id === 'sow') ? -(+$('depth').value || 0) : 0;
+const coordText = (p, tool) => `x${p.x}y${p.y}z${zFor(tool)}`;
+const showCoord = (p, tool) => { $('out').textContent = coordText(p, tool); };
+const inside = (el, e) => { const r = el.getBoundingClientRect(); return e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom; };
+const overGrid = e => inside(vp, e) && inside(grid, e);
+
+// ===== Zoom / di chuyển khung nhìn =====
+const view = { s:1, x:0, y:0 };
+function applyView(){
+  const lim = vp.clientWidth * view.s / 2;
+  view.x = Math.max(-lim, Math.min(lim, view.x));
+  view.y = Math.max(-lim, Math.min(lim, view.y));
+  map.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.s})`;
+}
+const zoomBy = k => { view.s = Math.max(.6, Math.min(3.5, view.s * k)); applyView(); };
+$('zin').onclick = () => zoomBy(1.3);
+$('zout').onclick = () => zoomBy(1/1.3);
+$('zreset').onclick = () => { view.s = 1; view.x = view.y = 0; applyView(); };
+document.querySelectorAll('[data-pan]').forEach(b => b.onclick = () => {
+  const d = 70, k = b.dataset.pan;
+  if (k==='l') view.x += d; if (k==='r') view.x -= d; if (k==='u') view.y += d; if (k==='d') view.y -= d;
+  applyView();
+});
+vp.addEventListener('wheel', e => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.12 : 1/1.12); }, {passive:false});
+
+// ===== Biểu tượng bay theo con trỏ =====
+const ghost = $('ghost'), gic = ghost.querySelector('.ic'), gtag = ghost.querySelector('.tag');
+let dragging = false, ghostTool = null;
+function placeGhost(e){
+  ghost.style.transform = `translate(${e.clientX}px,${e.clientY}px) translate(-50%,-60%)`;
+  const ok = overGrid(e);
+  ghost.classList.toggle('ok', ok);
+  if (ok){ const p = point(e); gtag.textContent = coordText(p, ghostTool); showCoord(p, ghostTool); } else gtag.textContent = '';
+}
+function showGhost(t, e){ ghostTool = t; gic.innerHTML = t.icon; ghost.hidden = false; placeGhost(e); }
+const hideGhost = () => { ghost.hidden = true; };
+
+// ===== Danh sách chức năng: kéo thả bằng pointer (chuột + cảm ứng) =====
+const box = $('plants');
+function select(t){
+  current = current === t ? null : t;
+  box.querySelectorAll('.plant').forEach(x => x.classList.toggle('on', !!current && x.dataset.id === current.id));
+  if (!current && !dragging) hideGhost();
+  $('botpanel').hidden = !(current && current.id === 'move');   // bảng điều khiển FarmBot chỉ hiện khi chọn FarmBot
+  if (!$('botpanel').hidden) scanInfo();
+}
+TOOLS.forEach(t => {
+  const d = document.createElement('div');
+  d.className = 'plant'; d.dataset.id = t.id; d.tabIndex = 0; d.setAttribute('role', 'button');
+  d.innerHTML = `<span class="ic">${t.icon}</span><span class="tx"><b>${t.n}</b><small>${t.d}</small></span>`;
+  d.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); select(t); } });
+  d.addEventListener('pointerdown', e => {
+    d.setPointerCapture(e.pointerId);
+    const sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    const mv = ev => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 5){ moved = true; dragging = true; showGhost(t, ev); }
+      if (moved) placeGhost(ev);
+    };
+    const up = ev => {
+      d.removeEventListener('pointermove', mv);
+      d.removeEventListener('pointerup', up);
+      d.removeEventListener('pointercancel', up);
+      if (moved){
+        dragging = false; hideGhost();
+        if (ev.type === 'pointerup' && overGrid(ev)){ const p = point(ev); showCoord(p, t); enqueue(t, p); }
+      } else select(t);
+    };
+    d.addEventListener('pointermove', mv);
+    d.addEventListener('pointerup', up);
+    d.addEventListener('pointercancel', up);
+  });
+  box.appendChild(d);
+});
+// Khi đã chọn chức năng: biểu tượng đi theo chuột trên ruộng
+vp.addEventListener('pointermove', e => {
+  if (dragging || !current || e.pointerType !== 'mouse') return;
+  if (overGrid(e)){ if (ghost.hidden) showGhost(current, e); else placeGhost(e); } else hideGhost();
+});
+vp.addEventListener('pointerleave', () => { if (!dragging) hideGhost(); });
+grid.addEventListener('click', e => {
+  // Chưa chọn chức năng mà bấm vào vòng "nên gieo" / "cỏ dại" -> thêm ô gieo / ô phun thuốc đúng tâm vòng đó
+  const mk = !current && e.target.closest('.sugg,.weed');
+  if (mk){
+    const fx = +mk.dataset.fx, fy = +mk.dataset.fy;
+    const p = { fx, fy, x: Math.round(fx * size()), y: Math.round((isTL() ? fy : 1 - fy) * sizeY()) };
+    const t = TOOLS.find(x => x.id === (mk.classList.contains('weed') ? 'spray' : 'sow'));
+    showCoord(p, t); enqueue(t, p); return;
+  }
+  const p = point(e); showCoord(p, current);
+  if (current) enqueue(current, p);
+});
+
+// ===== Gửi lệnh (mô phỏng hoặc thật) =====
+async function sendCommand(kind, args){
+  const cmd = { kind, args };
+  if (!BOT_URL) return cmd;
+  let res;
+  try {
+    res = await fetch(BOT_URL, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(cmd)});
+  } catch(err){
+    throw new Error('Không kết nối được bot (' + err.message + ')');
+  }
+  if (!res.ok) throw new Error('Bot trả lỗi ' + res.status);
+  try { return await res.json(); } catch(e){ return cmd; }
+}
+// Gửi lệnh và (khi mô phỏng) chờ ms để hoạt ảnh chạy xong
+const cmd = (kind, args, ms) => { guard(); return Promise.all([sendCommand(kind, args), wait(ms || 0)]); };
+const setStat = (p, z) => { $('sx').textContent = p.x; $('sy').textContent = p.y; $('sz').textContent = z; };
+
+// ===== Hiệu ứng trên bản đồ =====
+function addPlant(p, emoji){
+  count('sow');
+  seeds.push({x:p.x, y:p.y, fx:p.fx, fy:p.fy, z:(p.z !== undefined ? p.z : -(+$('depth').value || 0))}); renderSeeds();
+  const w = document.createElement('div');
+  w.className = 'plantwrap'; w.style.left = (p.fx*100)+'%'; w.style.top = (p.fy*100)+'%';
+  w.innerHTML = `<div class="spread"></div><div class="e">${emoji}</div>`;
+  grid.appendChild(w);
+}
+function effect(p, kind){   // chỉ là hoạt ảnh; bộ đếm tăng khi tưới/phun XONG (recordCell), nên bị E-STOP giữa chừng không bị đếm trùng
+  const f = document.createElement('div');
+  f.className = 'fx ' + kind; f.style.left = (p.fx*100)+'%'; f.style.top = (p.fy*100)+'%';
+  f.innerHTML = '<i></i><i></i><i></i>';
+  grid.appendChild(f);
+  return { stop(){ f.classList.add('leave'); setTimeout(() => f.remove(), 5000); } };
+}
+
+// ===== Bot =====
+let botPos = { fx:0, fy:0 };
+let botMoving = false;   // đang di chuyển thì không ghi vị trí cỏ dại từ ảnh (ảnh bị nhòe / sai chỗ)
+async function moveTo(p){
+  log(`move_absolute x${p.x} y${p.y} z0`);
+  const dist = Math.hypot((p.fx - botPos.fx)*size(), (p.fy - botPos.fy)*sizeY()) / Math.hypot(size(), sizeY()) * 1.41;
+  const dur = Math.round(350 + dist * 1300);       // xa thì đi lâu hơn
+  bot.style.transitionDuration = `${dur}ms, ${dur}ms, .3s, .3s, .3s`;
+  bot.style.left = (p.fx*100)+'%'; bot.style.top = (p.fy*100)+'%';
+  botPos = { fx:p.fx, fy:p.fy };
+  setStat(p, 0);
+  botMoving = true;
+  try { await cmd('move_absolute', {x:p.x, y:p.y, z:0}, dur); } finally { botMoving = false; }
+}
+async function pin(name, value, label){
+  if (value) guard();   // bật van/bơm thì phải kiểm tra; tắt (value 0) luôn được gửi
+  log(`write_pin ${PINS[name]} = ${value}  (${label})`);
+  await sendCommand('write_pin', {pin_number:PINS[name], pin_value:value, pin_mode:0});
+}
+
+// ===== 3 chức năng =====
+// Hạ / nâng trục Z tại ô p (Z âm = hạ xuống). Gieo hạt luôn hạ tới p.z; tưới và phun chỉ hạ khi p.z khác 0.
+const lowerZ = async (p, z) => {
+  log(`move_absolute z${z}  (hạ trục Z)`);
+  bot.classList.add('down'); setStat(p, z);
+  await cmd('move_absolute', {x:p.x, y:p.y, z}, 450);
+};
+const raiseZ = async p => {
+  log('move_absolute z0  (nâng trục Z)');
+  bot.classList.remove('down'); setStat(p, 0);
+  await cmd('move_absolute', {x:p.x, y:p.y, z:0}, 450);
+};
+const actions = {
+  async sow(p){
+    const z1 = (p.z !== undefined ? p.z : -(+$('depth').value || 0));   // Z đã chốt lúc thêm vào hàng chờ
+    await moveTo(p);
+    log(`move_absolute z${z1}  (hạ trục Z)`);
+    bot.classList.add('down'); setStat(p, z1);
+    await cmd('move_absolute', {x:p.x, y:p.y, z:z1}, 450);
+    await pin('vacuum', 0, 'nhả hạt');
+    addPlant(p, '🥬'); await wait(500);
+    log('move_absolute z0  (nâng trục Z)');
+    bot.classList.remove('down'); setStat(p, 0);
+    await cmd('move_absolute', {x:p.x, y:p.y, z:0}, 450);
+  },
+  async water(p){
+    const sec = p.sec || +$('wsec').value || 2, z = p.z || 0;   // p.sec: thời gian riêng của ô (đặt qua trợ lý chat)
+    await moveTo(p);
+    if (z) await lowerZ(p, z);
+    await pin('water', 1, 'mở van nước');
+    const fx = effect(p, 'wet');
+    try { await holdFor(sec*1000); recordCell('wet', p); }
+    finally {
+      fx.stop();
+      await pin('water', 0, 'đóng van nước').catch(e => log('! Không đóng được van: ' + e.message));
+      if (z) await raiseZ(p).catch(e => log('! Không nâng được trục Z: ' + e.message));
+    }
+  },
+  async spray(p){
+    const sec = p.sec || +$('psec').value || 1, z = p.z || 0;
+    await moveTo(p);
+    if (z) await lowerZ(p, z);
+    await pin('pesticide', 1, 'bật bơm thuốc');
+    const fx = effect(p, 'mist');
+    try { await holdFor(sec*1000); recordCell('mist', p); markSprayed(p); }
+    finally {
+      fx.stop();
+      await pin('pesticide', 0, 'tắt bơm thuốc').catch(e => log('! Không tắt được bơm: ' + e.message));
+      if (z) await raiseZ(p).catch(e => log('! Không nâng được trục Z: ' + e.message));
+    }
+  },
+  // FarmBot: chỉ di chuyển (Z0), không bật van / bơm, không tác động cây
+  async move(p){ await moveTo(p); },
+  // Dò ảnh: tới điểm, đứng yên "Dừng chụp" giây cho camera + AI nhận diện; cỏ dại thấy trong lúc đứng yên được ghi lên bản đồ
+  async scan(p){
+    await moveTo(p);
+    if (!AI.running && Date.now() - scanWarnAt > 20000){
+      scanWarnAt = Date.now();
+      log('! Dò ảnh: nhận diện AI chưa chạy (cần server + model + bật camera) nên bot chỉ di chuyển, không tìm được cỏ dại');
+    }
+    const dwell = Math.max(0.2, +$('scanwait').value || 0.5);
+    scanCtx = { p, from: Date.now() + Math.min(400, dwell * 400), hits: 0 };   // bỏ phần đầu (tối đa 0,4 giây) cho ảnh hết rung
+    try {   // đứng chờ, nhưng bấm "Dừng dò" thì thôi ngay
+      const end = Date.now() + dwell * 1000;
+      while (Date.now() < end && !scanAbort){ guard(); await sleep(Math.min(100, end - Date.now())); }
+      guard();
+    }
+    finally {
+      const c = scanCtx; scanCtx = null;
+      lastScanAt = Date.now(); scannedPts++;
+      log(`  dò x${p.x}y${p.y}: ${c.hits ? c.hits + ' lần thấy cỏ dại / sâu bệnh' : 'không thấy cỏ dại'}`);
+      renderSuggest();
+    }
+  }
+};
+let scanCtx = null, lastScanAt = 0, scanWarnAt = 0, scannedPts = 0, scanning = false, scanAbort = false;
+
+// ===== E-STOP =====
+function setHalted(v){
+  halted = v;
+  if (v) haltSeq++;
+  const b = $('estop');
+  b.textContent = v ? 'TIẾP TỤC' : 'E-STOP';
+  b.classList.toggle('resume', v);
+  if (v) bot.classList.remove('down');
+  updateState();
+}
+// Chip trạng thái trên thanh trên cùng: Sẵn sàng / Đang chạy / Đã dừng
+function updateState(){
+  const s = $('state');
+  s.classList.toggle('stop', halted);
+  s.classList.toggle('run', !halted && runBusy);
+  $('statetxt').textContent = halted ? 'Đã dừng' : runBusy ? 'Đang chạy' : 'Sẵn sàng';
+}
+$('estop').onclick = async () => {
+  if (!halted){
+    setHalted(true);
+    log('!!! E-STOP: dừng khẩn cấp, thao tác đang chạy bị dừng, phần còn lại vẫn nằm trong hàng chờ');
+    try { await sendCommand('emergency_stop', {}); }
+    catch(err){ log('! Không gửi được lệnh dừng: ' + err.message); }
+  } else {
+    setHalted(false);
+    log('Đã tiếp tục. Hãy kiểm tra vị trí bot thật trước khi chạy lệnh mới.');
+  }
+};
+
+// ===== Hàng chờ: bấm ruộng chỉ THÊM vào hàng chờ, bấm "Xác nhận" mới gửi lệnh cho bot =====
+// Mỗi ô có X, Y, Z sửa được ngay trong hàng chờ (Z mặc định 0; Z âm = hạ xuống, chỉnh độ sâu sau).
+// Trạng thái mỗi ô: wait (đang chờ) -> queued (nằm trong lượt đang chạy) -> run (đang chạy) -> xong thì bị xóa khỏi hàng.
+// Nếu bị lỗi / E-STOP giữa chừng thì ô đó thành fail (⚠️) và còn lại trong hàng để kiểm tra rồi chạy lại hoặc bỏ.
+const pending = [];
+let pendSeq = 0, runBusy = false;
+const PSTATE = { wait:'⏳', queued:'🕑', run:'▶️', fail:'⚠️' };
+const Z_MIN = -1000;                                       // mm: giới hạn an toàn khi nhập tay Z (Z âm = hạ xuống)
+const NO_Z = id => id === 'move' || id === 'scan';        // FarmBot / dò ảnh luôn đi ở Z0
+const fmtNum = v => String(Math.round(v * 10) / 10);
+
+function enqueue(tool, p){
+  const q = Object.assign({}, p, { z: p.z !== undefined ? p.z : zFor(tool) });   // chốt Z ngay lúc thêm (mặc định 0, sửa được trong hàng chờ)
+  if (NO_Z(tool.id)) q.z = 0;                        // di chuyển luôn đi ở Z0 (không kéo đầu bot qua đất)
+  if (pending.some(it => it.tool.id === tool.id && it.p.x === q.x && it.p.y === q.y)){
+    log(`Đã có "${tool.n}" tại x${q.x}y${q.y} trong hàng chờ`); return false;
+  }
+  const el = document.createElement('div');
+  el.className = 'pendwrap'; el.style.left = (q.fx*100)+'%'; el.style.top = (q.fy*100)+'%';
+  el.innerHTML = `<span class="pe">${tool.icon}</span><b class="pn"></b>`;
+  grid.appendChild(el);
+  pending.push({ id: ++pendSeq, tool, p: q, state: 'wait', el, row: null });
+  log(`+ Chờ: ${tool.n} tại x${q.x}y${q.y}z${q.z}${q.sec ? ' · ' + q.sec + ' giây' : ''}`);
+  renderPending();
+  return true;
+}
+function dropItem(it){
+  it.el.remove(); if (it.row) it.row.remove();
+  const i = pending.indexOf(it); if (i >= 0) pending.splice(i, 1);
+}
+function removePending(id){
+  const it = pending.find(o => o.id === id);
+  if (!it || it.state === 'run') return;
+  dropItem(it); renderPending();
+}
+function clearPending(){
+  if (runBusy) return;
+  const n = pending.length;
+  pending.slice().forEach(dropItem);
+  renderPending();
+  if (n) log(`Đã xóa ${n} ô khỏi hàng chờ`);
+}
+function sortPending(){   // đi tới ô gần nhất trước để bot đỡ chạy vòng
+  if (runBusy || pending.length < 2) return;
+  const rest = pending.slice(), route = [];
+  let cur = botPos;
+  const d = (a, b) => Math.hypot((a.fx - b.fx) * size(), (a.fy - b.fy) * sizeY());
+  while (rest.length){
+    let bi = 0;
+    rest.forEach((it, i) => { if (d(cur, it.p) < d(cur, rest[bi].p)) bi = i; });
+    const it = rest.splice(bi, 1)[0]; route.push(it); cur = it.p;
+  }
+  pending.splice(0, pending.length, ...route);
+  renderPending(); log('Đã sắp xếp hàng chờ theo đường đi gần nhất');
+}
+
+// ----- Sửa X, Y, Z của một ô đang chờ -----
+// Dùng chung cho ô nhập trong hàng chờ và lệnh chat "sửa ô 2 z -3". Trả về { ok, msg }.
+function applyEdit(it, k, v){
+  if (it.state === 'run') return { ok:false, msg:'Ô này đang chạy, không sửa được' };
+  if (k === 'z' && NO_Z(it.tool.id)) return { ok:false, msg:'Lệnh di chuyển luôn đi ở Z0' };
+  v = Math.round(v * 10) / 10;
+  const [lo, hi] = { x:[0, size()], y:[0, sizeY()], z:[Z_MIN, 0] }[k];
+  const c = Math.min(hi, Math.max(lo, v));
+  let msg = '';
+  if (c !== v){ msg = `${k.toUpperCase()} = ${v} nằm ngoài khoảng ${lo}…${hi}, đã đặt thành ${c}`; log('! ' + msg); }
+  if (k !== 'z'){
+    const nx = k === 'x' ? c : it.p.x, ny = k === 'y' ? c : it.p.y;
+    if (pending.some(o => o !== it && o.tool.id === it.tool.id && o.p.x === nx && o.p.y === ny)){
+      msg = `Đã có "${it.tool.n}" tại x${nx}y${ny} trong hàng chờ`; log('! ' + msg); return { ok:false, msg };
+    }
+  }
+  it.p[k] = c;
+  if (k !== 'z'){   // dời ô đánh dấu trên ruộng theo tọa độ mới
+    it.p.fx = it.p.x / size();
+    it.p.fy = isTL() ? it.p.y / sizeY() : 1 - it.p.y / sizeY();
+    it.el.style.left = (it.p.fx*100)+'%'; it.el.style.top = (it.p.fy*100)+'%';
+  }
+  log(`~ Sửa ô #${pending.indexOf(it) + 1} (${it.tool.n}): x${it.p.x}y${it.p.y}z${it.p.z}`);
+  return { ok:true, msg };
+}
+function editPending(it, k, inp){
+  const v = parseFloat(inp.value);
+  if (isFinite(v)) applyEdit(it, k, v);
+  inp.value = fmtNum(it.p[k]);
+}
+function makeRow(it){
+  const d = document.createElement('div');
+  d.innerHTML = `<div class="ph"><small class="ps"></small><span class="pic">${it.tool.icon}</span><b class="pname">${it.tool.n}</b>` +
+                `<button class="pdel ghostbtn" title="Bỏ ô này khỏi hàng chờ">✕</button></div>` +
+                `<div class="pc"><label>X<input data-k="x" type="number" step="1" aria-label="X (mm)"></label>` +
+                `<label>Y<input data-k="y" type="number" step="1" aria-label="Y (mm)"></label>` +
+                `<label>Z<input data-k="z" type="number" step="1" max="0" min="${Z_MIN}" aria-label="Z (mm, âm = hạ xuống)"></label></div>`;
+  d.querySelector('.pdel').onclick = () => removePending(it.id);
+  d.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', () => editPending(it, inp.dataset.k, inp));
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+  });
+  it.row = d;
+}
+// Cập nhật từng dòng tại chỗ (không dựng lại cả danh sách) để không mất con trỏ khi đang gõ / bấm Tab giữa các ô
+function renderPending(){
+  const L = $('pendlist');
+  pending.forEach((it, i) => {
+    if (!it.row) makeRow(it);
+    if (L.children[i] !== it.row) L.insertBefore(it.row, L.children[i] || null);
+    it.row.className = 'pi ' + it.state;
+    it.row.title = it.state === 'fail' ? 'Bị gián đoạn lần trước: kiểm tra bot rồi chạy lại hoặc bỏ ô này' : '';
+    it.row.querySelector('.ps').textContent = `${PSTATE[it.state]} #${i + 1}`;
+    it.row.querySelector('.pdel').disabled = it.state === 'run';
+    it.row.querySelector('.pname').textContent = it.tool.n + (it.p.sec ? ` · ${it.p.sec}s` : '');
+    it.row.querySelectorAll('input').forEach(inp => {
+      inp.disabled = it.state === 'run' || (inp.dataset.k === 'z' && NO_Z(it.tool.id));
+      if (document.activeElement !== inp) inp.value = fmtNum(it.p[inp.dataset.k]);
+    });
+    it.el.querySelector('.pn').textContent = i + 1;
+    it.el.classList.toggle('run', it.state === 'run');
+    it.el.classList.toggle('fail', it.state === 'fail');
+  });
+  const n = pending.length;
+  $('pendnone').hidden = n > 0;
+  $('pconfirm').disabled = runBusy || !n;
+  $('pconfirm').textContent = runBusy ? '⏳ Đang chạy…' : `✅ Xác nhận (${n})`;
+  $('pclear').disabled = $('psort').disabled = runBusy || !n;
+  $('empty').hidden = n > 0 || scanning || (counts.sow + counts.wet + counts.mist) > 0;
+  updateState();
+  renderSuggest();
+}
+// Đổi kích thước ruộng / gốc tọa độ: giữ nguyên vị trí thật của ô, tính lại x, y hiển thị
+function syncPendingXY(){
+  pending.forEach(it => {
+    it.p.x = Math.round(it.p.fx * size());
+    it.p.y = Math.round((isTL() ? it.p.fy : 1 - it.p.fy) * sizeY());
+  });
+  renderPending();
+}
+['size', 'sizey', 'origin'].forEach(id => $(id).addEventListener('input', syncPendingXY));
+
+// Trả về { done, total, stopped } khi chạy xong (null nếu không chạy được) để trợ lý chat báo lại kết quả
+async function confirmPending(){
+  if (runBusy) return null;
+  if (halted){ log('! Đang dừng khẩn cấp, bấm TIẾP TỤC trước khi thực hiện'); return null; }
+  const batch = pending.filter(it => it.state === 'wait' || it.state === 'fail');
+  if (!batch.length) return null;
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();   // chốt giá trị đang gõ dở
+  runBusy = true; runSeq = haltSeq; batch.forEach(it => it.state = 'queued'); renderPending();
+  log(`=== Xác nhận: thực hiện ${batch.length} thao tác ===`);
+  let done = 0, stopped = false;
+  for (const it of batch){
+    if (!pending.includes(it)) continue;                // ô đã bị bỏ khỏi hàng chờ trong lúc chạy
+    if (halted || runSeq !== haltSeq){ stopped = true; break; }   // đã E-STOP (kể cả khi đã bấm TIẾP TỤC sau đó)
+    it.state = 'run'; renderPending();
+    log(`--- ${it.tool.n} tại x${it.p.x}y${it.p.y}z${it.p.z} ---`);
+    try { await actions[it.tool.id](it.p); }
+    catch(err){
+      log('! DỪNG: ' + err.message);
+      it.state = 'fail'; stopped = true;
+      // lỗi thật (mất kết nối, bot báo lỗi...) thì tự dừng khẩn cấp; còn do E-STOP trước đó thì thôi
+      if (!halted && runSeq === haltSeq){ setHalted(true); sendCommand('emergency_stop', {}).catch(() => {}); }
+      break;
+    }
+    done++;
+    if (pending.includes(it)) dropItem(it);
+    renderPending();
+  }
+  pending.forEach(it => { if (it.state === 'queued' || it.state === 'run') it.state = 'wait'; });
+  runBusy = false; renderPending();
+  log(stopped ? `=== Bị dừng sau ${done}/${batch.length} thao tác, phần còn lại vẫn nằm trong hàng chờ ===` : `=== Xong ${done} thao tác ===`);
+  if (!stopped) toast(`✅ Xong ${done} thao tác`, 'ok');
+  return { done, total: batch.length, stopped };
+}
+$('pconfirm').onclick = confirmPending;
+$('pclear').onclick = clearPending;
+$('psort').onclick = sortPending;
+
+function clearMap(){
+  grid.querySelectorAll('.plantwrap,.fx').forEach(x => x.remove());
+  Object.keys(counts).forEach(k => { counts[k] = 0; $('c-'+k).textContent = 0; });
+  seeds.length = 0; renderSeeds();
+  logs.wet.clear(); logs.mist.clear(); renderWet();
+  weeds.length = 0; renderWeeds();
+  renderPending();
+  log('Đã xóa dấu vết trên bản đồ');
+}
+$('clear').onclick = () => {   // không hoàn tác được nên hỏi lại trước
+  if (counts.sow + counts.wet + counts.mist === 0 || confirm('Xóa toàn bộ cây đã gieo, vết tưới/phun và bộ đếm trên bản đồ?\n(Không hoàn tác được; bot thật không bị ảnh hưởng.)')) clearMap();
+};
+
+// ===== Camera =====
+const video = $('cam'), camimg = $('camimg'), camhint = $('camhint');
+let stream = null, camOn = false;
+async function listCams(){
+  try{
+    const d = (await navigator.mediaDevices.enumerateDevices()).filter(x => x.kind === 'videoinput');
+    $('camsel').innerHTML = d.map((x,i) => `<option value="${x.deviceId}">${x.label || 'Camera ' + (i+1)}</option>`).join('');
+    if (stream) $('camsel').value = stream.getVideoTracks()[0].getSettings().deviceId || '';
+  }catch(e){}
+}
+function camStop(){
+  aiStop();
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; video.srcObject = null; camimg.removeAttribute('src');
+  video.hidden = camimg.hidden = true; camhint.hidden = false; camhint.textContent = 'Chưa bật camera';
+  camOn = false; $('camtoggle').textContent = 'Bật camera';
+}
+async function camStart(){
+  camStop();
+  const url = $('camurl').value.trim();
+  try{
+    if (url){
+      camimg.onerror = () => { camhint.hidden = false; camhint.textContent = 'Không mở được URL camera'; camimg.hidden = true; };
+      camimg.src = url; camimg.hidden = false; camhint.hidden = true;
+    } else {
+      if (!navigator.mediaDevices) throw new Error('Cần chạy bằng localhost hoặc HTTPS (dùng Live Server)');
+      const id = $('camsel').value;
+      stream = await navigator.mediaDevices.getUserMedia({ video: id ? {deviceId:{exact:id}} : true });
+      video.srcObject = stream; video.hidden = false; camhint.hidden = true;
+      await listCams();
+    }
+    camOn = true; $('camtoggle').textContent = 'Tắt camera';
+    aiMaybeStart();
+  }catch(err){
+    camhint.hidden = false; camhint.textContent = 'Lỗi camera: ' + err.message;
+  }
+}
+$('camtoggle').onclick = () => camOn ? camStop() : camStart();
+$('camsel').onchange = () => { if (camOn) camStart(); };
+listCams();
+
+// ===== Nhận diện cây bằng AI (server Python giữ model DINO / YOLO) =====
+// Chạy start_detect_server.bat rồi mở http://127.0.0.1:8001/ . Trình duyệt chỉ gửi khung hình MỚI NHẤT lên server
+// (không xếp hàng khung cũ) nên hình camera vẫn mượt, khung nhận diện bám theo sau vài khung hình.
+const AI_PORT = 8001;
+const AI = { loaded:null, models:[], running:false, token:0, last:[], sw:1, sh:1, nFps:0, tFps:0 };
+const aiOv = $('camov'), aiCtx = aiOv.getContext('2d'), aiGrab = document.createElement('canvas');
+const AI_COLOR = { lettuce:'#27e03a', weed:'#ff3b3b' };
+const aiPref = {
+  get(k, d){ try { const v = localStorage.getItem('fb_ai_' + k); return v === null ? d : v; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem('fb_ai_' + k, v); } catch(e){} }
+};
+const aiBase = () => $('aiurl').value.trim().replace(/\/+$/, '');
+const aiName = id => (AI.models.find(m => m.id === id) || {}).name || id;
+function aiStatus(t, k){ const s = $('aistatus'); s.textContent = t; s.dataset.k = k || ''; }
+
+const aiSame = location.protocol.indexOf('http') === 0 && location.port === String(AI_PORT);
+$('aiurl').value = aiSame ? location.origin : aiPref.get('url', 'http://127.0.0.1:' + AI_PORT);
+$('aithr').value = aiPref.get('thr', '15'); $('aithrv').textContent = ($('aithr').value / 100).toFixed(2);
+$('aisize').value = aiPref.get('size', '480');
+$('aion').checked = aiPref.get('on', '1') === '1';
+
+async function aiConnect(silent){
+  const base = aiBase(); if (!base) return false;
+  aiPref.set('url', base);
+  try{
+    const r = await fetch(base + '/models');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    AI.models = j.models; AI.loaded = j.loaded;
+    const sel = $('aimodel'), keep = aiPref.get('model', '');
+    sel.innerHTML = '';
+    j.models.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.id; o.textContent = m.name + (m.available ? '' : ' (thiếu file model)'); o.disabled = !m.available;
+      sel.appendChild(o);
+    });
+    const first = j.models.find(m => m.available);
+    sel.value = j.loaded || (j.models.some(m => m.id === keep && m.available) ? keep : (first ? first.id : ''));
+    aiStatus(j.loaded ? `Đã kết nối · đang dùng ${aiName(j.loaded)}${j.gpu ? ' · ' + j.gpu : ''}`
+                      : `Đã kết nối${j.gpu ? ' (' + j.gpu + ')' : ''} · chọn model rồi bấm "Tải model"`, 'ok');
+    if (!silent) log('AI: đã kết nối server ' + base);
+    aiMaybeStart();
+    return true;
+  }catch(err){
+    aiStatus('Chưa kết nối được server nhận diện. Hãy chạy start_detect_server.bat rồi bấm "Kết nối" (' + err.message + ')', 'err');
+    return false;
+  }
+}
+
+async function aiLoad(){
+  const id = $('aimodel').value;
+  if (!id){ aiStatus('Chưa có model để tải, hãy bấm "Kết nối" trước', 'err'); return; }
+  const btn = $('aiload'); btn.disabled = true; btn.textContent = 'Đang tải model…';
+  aiStatus('Đang tải model lên GPU (DINO mất vài giây)…');
+  try{
+    const r = await fetch(aiBase() + '/load', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model:id})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    AI.loaded = id; aiPref.set('model', id);
+    const m = AI.models.find(x => x.id === id);
+    if (m && m.thr){ $('aithr').value = Math.round(m.thr * 100); $('aithr').oninput({target:$('aithr')}); }  // ngưỡng mặc định của model
+    aiStatus(`Đã tải: ${aiName(id)} (${(j.load_ms / 1000).toFixed(1)} giây)` + (camOn ? '' : ' · bật camera để nhận diện'), 'ok');
+    log('AI: đã tải model ' + aiName(id));
+    aiMaybeStart();
+  }catch(err){
+    aiStatus('Lỗi tải model: ' + err.message, 'err');
+  }finally{
+    btn.disabled = false; btn.textContent = 'Tải model';
+  }
+}
+
+function aiMaybeStart(){ if ($('aion').checked && camOn && AI.loaded && !AI.running) aiStart(); }
+function aiStart(){ AI.running = true; AI.nFps = 0; AI.tFps = performance.now(); aiLoop(++AI.token); }
+function aiClear(){ aiCtx.setTransform(1, 0, 0, 1, 0, 0); aiCtx.clearRect(0, 0, aiOv.width, aiOv.height); }
+function aiStop(){
+  AI.running = false; AI.token++; AI.last = []; aiClear();
+  aiHandle([], 1, 1, 0);   // tắt nhận diện thì tắt luôn cảnh báo
+  $('ai-let').textContent = $('ai-weed').textContent = $('ai-fps').textContent = '–';
+}
+function aiSource(){
+  if (!video.hidden && video.videoWidth) return [video, video.videoWidth, video.videoHeight];
+  if (!camimg.hidden && camimg.naturalWidth) return [camimg, camimg.naturalWidth, camimg.naturalHeight];
+  return null;
+}
+function aiDraw(mw, mh){
+  const c = aiOv.parentElement, W = c.clientWidth, H = c.clientHeight, d = window.devicePixelRatio || 1;
+  if (aiOv.width !== Math.round(W * d) || aiOv.height !== Math.round(H * d)){ aiOv.width = Math.round(W * d); aiOv.height = Math.round(H * d); }
+  aiCtx.setTransform(d, 0, 0, d, 0, 0); aiCtx.clearRect(0, 0, W, H);
+  const s = Math.max(W / mw, H / mh), ox = (W - mw * s) / 2, oy = (H - mh * s) / 2, f = mw / AI.sw * s;  // khớp object-fit: cover
+  aiCtx.lineWidth = 2; aiCtx.font = '600 11px system-ui,sans-serif'; aiCtx.textBaseline = 'top';
+  AI.last.forEach(o => {
+    const [x0, y0, x1, y1] = o.box, col = AI_COLOR[o.label] || (isBad(o.label) ? '#ff3b3b' : '#27e03a');
+    const x = ox + x0 * f, y = oy + y0 * f, w = (x1 - x0) * f, h = (y1 - y0) * f;
+    aiCtx.strokeStyle = col; aiCtx.strokeRect(x, y, w, h);
+    const t = o.score.toFixed(2), tw = aiCtx.measureText(t).width + 6;
+    aiCtx.fillStyle = col; aiCtx.fillRect(x, y, tw, 14); aiCtx.fillStyle = '#000'; aiCtx.fillText(t, x + 3, y + 2);
+  });
+}
+async function aiLoop(tok){
+  while (AI.running && tok === AI.token){
+    const s = camOn && aiSource();
+    if (!s){ await sleep(120); continue; }
+    const [el, mw, mh] = s, k = Math.min(1, 960 / Math.max(mw, mh)), w = Math.round(mw * k), h = Math.round(mh * k);
+    let blob;
+    const tCap = Date.now();   // lúc chụp khung hình: để biết ảnh chụp khi bot đã đứng yên ở điểm dò hay chưa
+    try{
+      aiGrab.width = w; aiGrab.height = h;
+      aiGrab.getContext('2d').drawImage(el, 0, 0, w, h);
+      blob = await new Promise(res => aiGrab.toBlob(res, 'image/jpeg', 0.75));
+    }catch(err){
+      aiStatus('Trình duyệt không cho đọc ảnh từ URL camera này (khác nguồn). Hãy dùng camera của trình duyệt (để trống ô URL).', 'err');
+      aiStop(); return;
+    }
+    if (!blob){ await sleep(120); continue; }
+    try{
+      const thr = ($('aithr').value / 100).toFixed(2), sz = $('aisize').value;
+      const r = await fetch(`${aiBase()}/detect?thr=${thr}&short=${sz}`, {method:'POST', headers:{'Content-Type':'text/plain'}, body: blob});
+      if (tok !== AI.token) return;
+      if (r.status === 409){ AI.loaded = null; aiStatus('Server chưa có model, hãy bấm "Tải model"', 'err'); aiStop(); return; }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      if (tok !== AI.token) return;
+      AI.last = j.dets; AI.sw = w; AI.sh = h; aiDraw(mw, mh);
+      $('ai-let').textContent = j.dets.filter(o => o.label === 'lettuce').length;
+      $('ai-weed').textContent = j.dets.filter(o => isBad(o.label)).length;
+      aiHandle(j.dets, w, h, tCap);
+      AI.nFps++;
+      const dt = performance.now() - AI.tFps;
+      if (dt >= 1000){ $('ai-fps').textContent = (AI.nFps * 1000 / dt).toFixed(0); AI.nFps = 0; AI.tFps = performance.now(); }
+    }catch(err){
+      if (tok !== AI.token) return;
+      aiStatus('Mất kết nối server nhận diện (' + err.message + '). Bấm "Kết nối" để thử lại.', 'err');
+      aiStop(); return;
+    }
+  }
+}
+
+$('aiconnect').onclick = () => aiConnect(false);
+$('aiload').onclick = aiLoad;
+$('aithr').oninput = e => { $('aithrv').textContent = (e.target.value / 100).toFixed(2); aiPref.set('thr', e.target.value); };
+$('aisize').onchange = e => aiPref.set('size', e.target.value);
+$('aion').onchange = e => { aiPref.set('on', e.target.checked ? '1' : '0'); if (e.target.checked) aiMaybeStart(); else aiStop(); };
+aiConnect(true);
+// ===== Trang trí: thước đo, đồng hồ, bộ đếm =====
+const counts = { sow:0, wet:0, mist:0 };
+function count(k){ counts[k]++; $('c-'+k).textContent = counts[k]; $('empty').hidden = true; }
+// ===== Ô đã tưới / đã phun thuốc (lưu theo ô lưới CELL cm, bật công tắc mới hiện) =====
+const logs = { wet:new Map(), mist:new Map() };
+const LAYER = {
+  wet:  { layer:'wetlayer',  count:'wetcount',  label:'Đã tưới', sw:'wetshow',  cls:'wcell' },
+  mist: { layer:'mistlayer', count:'mistcount', label:'Đã phun', sw:'mistshow', cls:'wcell mist' }
+};
+function recordCell(kind, p){
+  const cx = Math.min(Math.ceil(size()/CELL) - 1, Math.floor(p.fx * size() / CELL));
+  const cy = Math.min(Math.ceil(sizeY()/CELL) - 1, Math.floor(p.fy * sizeY() / CELL));
+  const k = cx + ',' + cy;
+  count(kind);
+  logs[kind].set(k, (logs[kind].get(k) || 0) + 1);
+  renderCells(kind);
+}
+function renderCells(kind){
+  const c = LAYER[kind], L = $(c.layer), sx = size(), sy = sizeY();
+  L.innerHTML = '';
+  let shown = 0;
+  logs[kind].forEach((n, k) => {
+    const [cx, cy] = k.split(',').map(Number);
+    if (cx*CELL >= sx || cy*CELL >= sy) return;   // nằm ngoài ruộng sau khi thu nhỏ
+    shown++;
+    const w = Math.min(CELL, sx - cx*CELL), h = Math.min(CELL, sy - cy*CELL);
+    const d = document.createElement('div');
+    d.className = c.cls;
+    d.style.cssText = `left:${cx*CELL/sx*100}%;top:${cy*CELL/sy*100}%;width:${w/sx*100}%;height:${h/sy*100}%;--a:${Math.min(.7, .22 + .14*n)}`;
+    if (n > 1) d.textContent = '×' + n;
+    L.appendChild(d);
+  });
+  const total = Math.ceil(sx/CELL) * Math.ceil(sy/CELL);
+  $(c.count).textContent = `${c.label}: ${shown}/${total} ô`;
+}
+function renderWet(){ renderCells('wet'); renderCells('mist'); }
+Object.keys(LAYER).forEach(kind => {
+  $(LAYER[kind].sw).onchange = e => $(LAYER[kind].layer).classList.toggle('on', e.target.checked);
+});
+
+function rulers(){
+  const sx = size(), sy = sizeY(), tl = isTL(), t = $('rtop'), l = $('rleft');
+  t.innerHTML = ''; l.innerHTML = '';
+  const g = gridStep(), stepOf = n => g * Math.max(1, Math.ceil(n / g / 6));
+  for (let v = 0; v <= sx; v += stepOf(sx)) t.insertAdjacentHTML('beforeend', `<span style="left:${v/sx*100}%">${v}</span>`);
+  for (let v = 0; v <= sy; v += stepOf(sy)) l.insertAdjacentHTML('beforeend', `<span style="top:${(tl ? v : sy - v)/sy*100}%">${v}</span>`);
+}
+// Đặt khung ruộng đúng tỉ lệ dài:rộng, vừa trong khung nhìn, ô lưới luôn vuông (gridStep() mm)
+function layout(){
+  const sx = size(), sy = sizeY(), r = sx / sy;
+  const aw = vp.clientWidth - 42 - 22, ah = vp.clientHeight - 34 - 22;
+  const w = Math.max(40, Math.min(aw, ah * r)), h = w / r;
+  map.style.width = w + 'px'; map.style.height = h + 'px';
+  map.style.left = (42 + (aw - w) / 2) + 'px'; map.style.top = (34 + (ah - h) / 2) + 'px';
+  const g = gridStep(), bx = g / sx * 100, by = g / sy * 100;
+  grid.style.backgroundSize = `${bx}% ${by}%,${bx}% ${by}%,23px 19px,31px 27px,100% 100%`;
+  $('fcell').textContent = g;
+  rulers();
+  renderWet();
+  renderSuggest();
+}
+new ResizeObserver(layout).observe(vp);
+['size','sizey','origin'].forEach(id => $(id).addEventListener('input', layout));
+layout();
+$('mode').textContent = BOT_URL ? 'Bot thật' : 'Mô phỏng';
+$('fmode').textContent = $('mode').textContent;
+$('year').textContent = new Date().getFullYear();
+function tick(){ $('clock').textContent = new Date().toLocaleString('vi-VN', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}); }
+tick(); setInterval(tick, 30000);
+
+// ===== Cảm biến: độ ẩm đất, độ ẩm không khí, nhiệt độ =====
+// Bot thật: điền SENSOR_URL, server trả JSON {"soil": 42, "humidity": 65, "temperature": 28.5} (soil/humidity: %, temperature: °C).
+// Để trống = mô phỏng (số giả dao động nhẹ).
+const SENSOR_URL = '';
+const SENSOR_EVERY = 5000;   // ms giữa hai lần đọc
+const DRY_SOIL = 30;         // % độ ẩm đất: dưới mức này coi là đất khô (số đỏ + trợ lý nhắc tưới)
+let lastSensor = null;
+const sim = { soil: 55, humidity: 70, temperature: 27 };
+const drift = (v, step, lo, hi) => Math.min(hi, Math.max(lo, v + (Math.random() - 0.5) * step));
+async function readSensors(){
+  if (!SENSOR_URL){
+    sim.soil = drift(sim.soil, 3, 20, 90); sim.humidity = drift(sim.humidity, 3, 30, 95); sim.temperature = drift(sim.temperature, 0.6, 15, 40);
+    return { soil: sim.soil, humidity: sim.humidity, temperature: sim.temperature, sim: true };
+  }
+  const res = await fetch(SENSOR_URL, { cache: 'no-store' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+const SRANGE = { 's-soil':[0,100], 's-hum':[0,100], 's-temp':[10,45] };
+function showSensor(id, v, unit, dec, lowBelow){
+  const e = $(id), ok = typeof v === 'number' && isFinite(v), tile = e.parentElement, bar = $('b-' + id.slice(2));
+  e.classList.toggle('lo', ok && lowBelow != null && v < lowBelow);
+  if (!ok){ e.textContent = '–'; bar.style.width = '0'; e._v = null; return; }
+  const [lo, hi] = SRANGE[id];
+  bar.style.width = Math.min(100, Math.max(0, (v - lo) / (hi - lo) * 100)) + '%';
+  const from = e._v == null ? v : e._v; e._v = v;
+  tile.classList.remove('pulse'); void tile.offsetWidth; tile.classList.add('pulse');   // nháy sáng mỗi lần cập nhật
+  const t0 = performance.now(), D = 800;                                               // số chạy mượt từ giá trị cũ sang mới
+  cancelAnimationFrame(e._raf);
+  const step = now => {
+    const k = Math.min(1, (now - t0) / D), s = 1 - Math.pow(1 - k, 3);
+    e.textContent = (from + (v - from) * s).toFixed(dec) + unit;
+    if (k < 1) e._raf = requestAnimationFrame(step);
+  };
+  e._raf = requestAnimationFrame(step);
+}
+async function sensorTick(){
+  try {
+    const d = await readSensors();
+    lastSensor = { soil:+d.soil, humidity:+d.humidity, temperature:+d.temperature, sim:!!d.sim, at:Date.now() };
+    chatOnSensor(lastSensor);
+    renderSuggest();
+    showSensor('s-soil', +d.soil, '%', 0, DRY_SOIL);
+    showSensor('s-hum', +d.humidity, '%', 0);
+    showSensor('s-temp', +d.temperature, '°C', 1);
+    $('s-note').textContent = (d.sim ? 'Dữ liệu mô phỏng · ' : 'Cập nhật ') + new Date().toLocaleTimeString('vi-VN');
+  } catch(err){
+    ['s-soil', 's-hum', 's-temp'].forEach(id => { $(id).textContent = '–'; $(id).classList.remove('lo'); });
+    $('s-note').textContent = 'Không đọc được cảm biến (' + err.message + ')';
+  }
+}
+sensorTick(); setInterval(sensorTick, SENSOR_EVERY);
+let autoBusy = false;
+// ===== Danh sách tọa độ hạt đã gieo =====
+const seeds = [];
+function renderSeeds(){
+  const b = $('seeds');
+  b.innerHTML = seeds.length
+    ? seeds.map((q,i) => `<div><small>#${i+1} 🥬</small><b>x${q.x}y${q.y}</b><small>z${q.z}</small></div>`).join('')
+    : '<p class="hint none">Chưa gieo hạt nào</p>';
+  b.scrollTop = b.scrollHeight;
+  if (!autoBusy) $('autowater').textContent = `💧 Thêm tưới tự động (${seeds.length} cây)`;
+  renderSuggest();
+}
+$('seedcopy').onclick = async () => {
+  const t = seeds.map((q,i) => `#${i+1} x${q.x}y${q.y} z${q.z}`).join('\n');
+  try { await navigator.clipboard.writeText(t); log('Đã sao chép ' + seeds.length + ' tọa độ'); } catch(e){ log('! Không sao chép được'); }
+};
+renderSeeds();
+// ===== Tưới / phun cho mọi cây đã gieo (nút "Tưới tự động" và lệnh chat "tưới tất cả cây") =====
+// skipDone: bỏ qua cây nằm ở ô đã tưới (hoặc đã phun, tùy chức năng). Trả về { added, total }.
+function queueOnSeeds(tool, skipDone, extra){   // extra: vd { sec: 5 } gắn vào từng ô
+  const kind = tool.id === 'water' ? 'wet' : tool.id === 'spray' ? 'mist' : null;
+  const seen = new Set(), pts = [];
+  seeds.forEach(q => {
+    const p = { fx:q.fx, fy:q.fy, x:Math.round(q.fx*size()), y:Math.round((isTL() ? q.fy : 1 - q.fy) * sizeY()) };
+    const key = p.x + ',' + p.y;
+    if (seen.has(key)) return;
+    if (skipDone && kind){
+      const cx = Math.min(Math.ceil(size()/CELL) - 1, Math.floor(p.fx * size() / CELL));
+      const cy = Math.min(Math.ceil(sizeY()/CELL) - 1, Math.floor(p.fy * sizeY() / CELL));
+      if (logs[kind].has(cx + ',' + cy)) return;
+    }
+    seen.add(key); pts.push(p);
+  });
+  const dist = (a, b) => Math.hypot((a.fx - b.fx) * size(), (a.fy - b.fy) * sizeY());
+  const route = []; let cur = botPos;
+  while (pts.length){
+    let bi = 0;
+    pts.forEach((q, i) => { if (dist(cur, q) < dist(cur, pts[bi])) bi = i; });
+    cur = pts.splice(bi, 1)[0]; route.push(cur);
+  }
+  let added = 0;
+  route.forEach(p => { if (enqueue(tool, Object.assign(p, extra || {}))) added++; });
+  return { added, total: route.length };
+}
+async function autoWater(){   // chỉ THÊM vào hàng chờ, người dùng kiểm tra rồi bấm "Xác nhận" mới tưới
+  if (autoBusy) return;
+  const r = queueOnSeeds(TOOLS.find(t => t.id === 'water'), $('skipwet').checked);
+  if (!r.total){ log(seeds.length ? 'Tất cả cây đều ở ô đã tưới' : 'Chưa có cây nào để tưới'); return; }
+  log(r.added ? `=== Đã thêm ${r.added} cây vào hàng chờ tưới, kiểm tra rồi bấm "Xác nhận" ===` : 'Các cây này đã có trong hàng chờ');
+}
+$('autowater').onclick = autoWater;
+
+// =====================================================================================================
+// ===== Cỏ dại / sâu bệnh: cảnh báo ĐỎ khi camera thấy khung đỏ + đánh dấu vị trí khi bot đang dò =====
+// =====================================================================================================
+const BAD_NAME = { weed:'cỏ dại', pest:'sâu bệnh', insect:'sâu', disease:'bệnh lá' };
+function isBad(label){ return label !== 'lettuce'; }        // mọi nhãn không phải xà lách (khung đỏ) đều cần chú ý
+const fpt = (x, y) => ({ x, y, fx: x / size(), fy: isTL() ? y / sizeY() : 1 - y / sizeY() });   // mm -> điểm trên bản đồ
+const mmX = q => Math.round(q.fx * size()), mmY = q => Math.round((isTL() ? q.fy : 1 - q.fy) * sizeY());
+const distMM = (a, b) => Math.hypot((a.fx - b.fx) * size(), (a.fy - b.fy) * sizeY());
+const weeds = [];                                            // { fx, fy, n: số lần thấy, done: đã phun }
+var alertSt = { on:false, muted:false, last:0 };
+
+function aiHandle(dets, w, h, tCap){
+  const bad = dets.filter(o => isBad(o.label)), now = Date.now();
+  if (bad.length){
+    alertSt.last = now;
+    // chỉ ghi vị trí khi bot ĐỨNG YÊN ở điểm dò và ảnh được chụp sau khi đã tới nơi
+    const scanning = scanCtx && !botMoving && tCap >= scanCtx.from;
+    if (scanning){ scanCtx.hits++; bad.forEach(o => addWeed(o, w, h)); }
+    const kinds = [...new Set(bad.map(o => BAD_NAME[o.label] || o.label))].join(', ');
+    $('aialert-t').textContent = `Phát hiện ${bad.length} ${kinds} trên camera!`;
+    $('aialert-s').textContent = scanning ? `Bot đang dò tại x${mmX(botPos)} y${mmY(botPos)} – đã đánh dấu ⚠ lên bản đồ.`
+      : scanCtx ? 'Đang dò ruộng…' : 'Dùng FarmBot → "Dò toàn ruộng" để biết vị trí và đánh dấu lên bản đồ.';
+    if (!alertSt.on){
+      alertSt.on = true;
+      log(`AI: camera phát hiện ${bad.length} ${kinds}`);
+      if (typeof say === 'function' && !chat.badWarned){ chat.badWarned = true; say(`⚠️ Camera phát hiện <b>${bad.length} ${kinds}</b>.`, ['đề xuất', 'dò toàn ruộng']); }
+    }
+    $('aialert').hidden = alertSt.muted;
+    $('camov').parentElement.classList.add('alert');
+  } else if (alertSt.on && (!tCap || now - alertSt.last > 2500)){   // hết thấy 2,5 giây (hoặc tắt AI) thì tắt cảnh báo
+    alertSt.on = alertSt.muted = false;
+    $('aialert').hidden = true; $('camov').parentElement.classList.remove('alert');
+    if (typeof chat !== 'undefined') chat.badWarned = false;
+  }
+  const todo = weedsTodo().length;
+  $('aialert-spray').hidden = !todo; $('aialert-spray').textContent = `🧴 Phun ${todo} điểm`;
+}
+$('aialert-x').onclick = () => { alertSt.muted = true; $('aialert').hidden = true; };
+$('aialert-spray').onclick = () => { const n = queueWeeds(); toast(n ? `Đã thêm ${n} điểm phun thuốc vào hàng chờ` : 'Các điểm này đã có trong hàng chờ', 'ok'); };
+
+// Ảnh -> vị trí trên ruộng: camera gắn trên bot nhìn thẳng xuống, tâm ảnh = vị trí bot, mép trên ảnh = phía trên bản đồ.
+// "Camera nhìn rộng" (mm) = bề ngang vùng đất trong ảnh. 0 = lấy luôn vị trí bot.
+function addWeed(o, w, h){
+  const fov = +$('camfov').value || 0;
+  let fx = botPos.fx, fy = botPos.fy;
+  if (fov > 0){
+    const cx = (o.box[0] + o.box[2]) / 2 / w - 0.5, cy = (o.box[1] + o.box[3]) / 2 / h - 0.5;
+    fx += cx * fov / size(); fy += cy * fov * (h / w) / sizeY();
+  }
+  const q = { fx: Math.min(1, Math.max(0, fx)), fy: Math.min(1, Math.max(0, fy)) };
+  const R = Math.max(10, (fov || 100) * 0.15);              // gộp các lần thấy gần nhau thành 1 điểm
+  const near = weeds.find(k => distMM(k, q) < R);
+  if (near){ near.fx = (near.fx * near.n + q.fx) / (near.n + 1); near.fy = (near.fy * near.n + q.fy) / (near.n + 1); near.n++; }
+  else { weeds.push({ fx:q.fx, fy:q.fy, n:1, done:false }); log(`! Cỏ dại / sâu bệnh tại khoảng x${mmX(q)} y${mmY(q)}`); }
+  renderWeeds(); renderSuggest();
+}
+function renderWeeds(){
+  const L = $('weedlayer'); L.innerHTML = '';
+  weeds.forEach(k => {
+    const d = document.createElement('div');
+    d.className = 'weed' + (k.done ? ' done' : ''); d.dataset.fx = k.fx; d.dataset.fy = k.fy;
+    d.style.left = (k.fx * 100) + '%'; d.style.top = (k.fy * 100) + '%';
+    d.title = `${k.done ? 'Đã phun thuốc' : 'Cỏ dại / sâu bệnh'} tại x${mmX(k)} y${mmY(k)} (thấy ${k.n} lần)` + (k.done ? '' : ' – bấm để thêm phun thuốc');
+    d.textContent = k.done ? '✓' : '🌿';
+    L.appendChild(d);
+  });
+}
+function markSprayed(p){
+  let n = 0;
+  weeds.forEach(k => { if (!k.done && distMM(k, p) <= 25){ k.done = true; n++; } });
+  if (n){ renderWeeds(); renderSuggest(); }
+}
+const weedsTodo = () => weeds.filter(k => !k.done && !pending.some(it => it.tool.id === 'spray' && distMM(it.p, k) < 10));
+function nearestRoute(pts){
+  const rest = pts.slice(), route = []; let cur = botPos;
+  while (rest.length){
+    let bi = 0; rest.forEach((q, i) => { if (distMM(cur, q) < distMM(cur, rest[bi])) bi = i; });
+    cur = rest.splice(bi, 1)[0]; route.push(cur);
+  }
+  return route;
+}
+function queueWeeds(){
+  const spray = TOOLS.find(t => t.id === 'spray');
+  let n = 0;
+  nearestRoute(weedsTodo()).forEach(k => { if (enqueue(spray, fpt(mmX(k), mmY(k)))) n++; });
+  return n;
+}
+
+// ===== FarmBot: dò HẾT các ô trong ruộng theo hình con rắn =====
+// Ô dò = ô lưới đang vẽ trên ruộng (hoặc "Cỡ ô dò" nếu có nhập). Bot đi qua TÂM của TỪNG ô, theo hướng nhìn trên màn hình:
+//   hàng trên cùng: trái -> phải hết hàng, xuống 1 ô, phải -> trái hết hàng, xuống 1 ô, trái -> phải ... tới hết ruộng.
+const scanCell = () => { const v = +$('scancell').value; return v >= 5 ? v : gridStep(); };
+function scanRoute(){
+  const c = scanCell();
+  const nx = Math.max(1, Math.ceil(size() / c - 1e-6)), ny = Math.max(1, Math.ceil(sizeY() / c - 1e-6)), pts = [];
+  for (let r = 0; r < ny; r++){                                    // r = hàng tính từ TRÊN xuống (theo màn hình)
+    const fy = (r + 0.5) / ny;
+    for (let k = 0; k < nx; k++){
+      const col = r % 2 ? nx - 1 - k : k;                          // hàng chẵn trái -> phải, hàng lẻ phải -> trái
+      const fx = (col + 0.5) / nx;
+      pts.push({ fx, fy, x: Math.round(fx * size()), y: Math.round((isTL() ? fy : 1 - fy) * sizeY()) });
+    }
+  }
+  return { pts, nx, ny, cell: c };
+}
+function scanInfo(){
+  const r = scanRoute(), dwell = Math.max(0.2, +$('scanwait').value || 0.5);
+  const sec = Math.round(r.pts.length * (dwell + 0.5));
+  $('scaninfo').textContent = `Ô ${r.cell} mm: ${r.nx} × ${r.ny} = ${r.pts.length} ô · khoảng ${sec >= 120 ? Math.round(sec / 60) + ' phút' : sec + ' giây'}`;
+}
+// Bấm "Dò toàn ruộng" -> bot TỰ CHẠY ngay hết lộ trình (không đưa từng điểm vào hàng chờ). Chỉ di chuyển ở Z0, không tác động cây.
+// Trên ruộng vẽ đường đi: nét đứt = cả lộ trình, nét vàng = đoạn đã đi. Bấm lại nút ("Dừng dò") để dừng; E-STOP vẫn dừng ngay.
+function drawScanPath(pts, k){   // k = số ô đã dò xong
+  const P = q => (q.fx * 100).toFixed(2) + ',' + (q.fy * 100).toFixed(2);
+  $('scanall').setAttribute('points', pts.map(P).join(' '));
+  $('scandone').setAttribute('points', pts.slice(0, k).map(P).join(' '));
+  $('scanpath').classList.remove('fade');
+}
+function setScanUI(on, k, n){
+  const b = $('scanbtn');
+  b.classList.toggle('on', on);
+  b.textContent = on ? `⏹ Dừng dò (${k}/${n})` : '🐍 ② Dò toàn ruộng';
+  $('scanprog').hidden = !on;
+  if (on) $('scanbar').style.width = (n ? k / n * 100 : 0) + '%';
+}
+async function scanRun(){
+  if (scanning){ scanAbort = true; return { ok:false, msg:'Đang dừng dò…' }; }
+  if (halted){ log('! Đang dừng khẩn cấp, bấm TIẾP TỤC trước khi dò'); return { ok:false, msg:'Bot đang dừng khẩn cấp, gõ "tiếp tục" trước.' }; }
+  if (runBusy){ log('! Bot đang chạy hàng chờ, đợi xong rồi dò'); return { ok:false, msg:'Bot đang chạy hàng chờ, đợi xong rồi dò.' }; }
+  const r = scanRoute(), n = r.pts.length;
+  scanning = true; scanAbort = false; runBusy = true; runSeq = haltSeq; renderPending();
+  if (current && current.id === 'move') scanInfo();
+  log(`=== Dò toàn ruộng: ${n} điểm, hình con rắn (${r.nx} × ${r.ny}) ===`);
+  drawScanPath(r.pts, 0); setScanUI(true, 0, n);
+  let i = 0, err = null;
+  try {
+    for (; i < n && !scanAbort; i++){
+      await actions.scan(r.pts[i]);
+      drawScanPath(r.pts, i + 1); setScanUI(true, i + 1, n);
+    }
+  } catch(e){
+    err = e;
+    if (!halted && runSeq === haltSeq){ setHalted(true); sendCommand('emergency_stop', {}).catch(() => {}); }   // lỗi thật -> dừng khẩn cấp
+  }
+  const found = weeds.filter(k => !k.done).length;
+  scanning = false; runBusy = false; setScanUI(false); renderPending();
+  const msg = err ? `Dò bị dừng sau ${i}/${n} điểm (${err.message})`
+            : scanAbort ? `Đã dừng dò sau ${i}/${n} điểm`
+            : `Dò xong ${n} điểm` + (found ? `, có ${found} điểm cỏ dại / sâu bệnh trên bản đồ` : ', không thấy cỏ dại');
+  log((err ? '! ' : '=== ') + msg + (err ? '' : ' ==='));
+  if (!err) toast((found ? '⚠️ ' : '✅ ') + msg, found ? 'err' : 'ok');
+  setTimeout(() => { if (!scanning) $('scanpath').classList.add('fade'); }, 5000);   // đường đi mờ dần sau 5 giây
+  return { ok: !err && !scanAbort, done:i, total:n, found, msg };
+}
+$('scanbtn').onclick = () => { scanRun(); };
+['scancell', 'scanwait', 'size', 'sizey'].forEach(id => $(id).addEventListener('input', scanInfo));
+
+// ===== Đề xuất: ô nên gieo + việc nên làm tiếp (chỉ tính và hiện khi bấm nút "Đề xuất") =====
+// Chia ruộng thành các Ô cỡ "Khoảng cách cây". Ô nào đã có cây / đang chờ gieo / có cỏ dại chưa phun = đã dùng.
+// Với mỗi ô CÒN LẠI: chọn điểm trong ô cách xa cây xung quanh nhất (ưu tiên tâm ô); nếu điểm tốt nhất vẫn quá sát
+// cây ô bên cạnh (< 0,6 × khoảng cách) thì bỏ, để cây không mọc chen nhau.
+function sowPlan(){
+  const gap = Math.max(20, +$('sowgap').value || 100), minD = gap * 0.6;
+  const nx = Math.max(1, Math.floor(size() / gap)), ny = Math.max(1, Math.floor(sizeY() / gap));
+  const cw = size() / nx, ch = sizeY() / ny;                          // cỡ thật của mỗi ô (mm)
+  const plants = [...seeds, ...pending.filter(it => it.tool.id === 'sow').map(it => it.p)];
+  const bad = weeds.filter(k => !k.done);
+  const cellOf = q => [Math.min(nx - 1, Math.floor(mmX(q) / cw)), Math.min(ny - 1, Math.floor(mmY(q) / ch))].join(',');
+  const plantCells = new Set(plants.map(cellOf)), weedCells = new Set(bad.map(cellOf));
+  const cells = [], spots = [], busy = [...plants, ...bad];
+  let blocked = 0;
+  const far = p => Math.min(Infinity, ...busy.map(b => distMM(b, p)), ...spots.map(s => distMM(s, p)));
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++){
+    const k = i + ',' + j, c = { x0: i * cw, y0: j * ch, used: plantCells.has(k) ? 'plant' : weedCells.has(k) ? 'weed' : '' };
+    cells.push(c);
+    if (c.used) continue;
+    let best = fpt(Math.round(c.x0 + cw / 2), Math.round(c.y0 + ch / 2)), bd = far(best);
+    if (bd < minD){                                                    // tâm ô quá sát -> thử các điểm khác trong ô
+      for (let a = 1; a < 6; a++) for (let b = 1; b < 6; b++){
+        const p = fpt(Math.round(c.x0 + cw * a / 6), Math.round(c.y0 + ch * b / 6)), d = far(p);
+        if (d > bd){ best = p; bd = d; }
+      }
+    }
+    if (bd >= minD){ spots.push(best); c.spot = best; } else { blocked++; c.used = 'close'; }
+  }
+  return { gap, nx, ny, cw, ch, cells, spots, blocked, plantN: plantCells.size, weedN: [...weedCells].filter(k => !plantCells.has(k)).length };
+}
+const sowSpots = () => sowPlan().spots;
+var suggOpen = false;
+const wetCellOf = p => Math.min(Math.ceil(size()/CELL) - 1, Math.floor(p.fx * size() / CELL)) + ',' + Math.min(Math.ceil(sizeY()/CELL) - 1, Math.floor(p.fy * sizeY() / CELL));
+function getSuggestions(plan){
+  plan = plan || sowPlan();
+  const S = [], spots = plan.spots, todo = weedsTodo();
+  const water = TOOLS.find(t => t.id === 'water'), sow = TOOLS.find(t => t.id === 'sow');
+  const queuedWater = p => pending.some(it => it.tool.id === 'water' && distMM(it.p, p) < 5);
+  const dryW = seeds.filter(q => !logs.wet.has(wetCellOf(q)) && !queuedWater(q));
+  const s = lastSensor, dry = s && isFinite(s.soil) && s.soil < DRY_SOIL;
+  if (todo.length) S.push({ cls:'warn', icon:'🧴', title:`Phun thuốc ${todo.length} điểm cỏ dại / sâu bệnh`,
+    sub:'Phát hiện khi dò ruộng (vị trí ước lượng từ camera): ' + todo.slice(0, 4).map(k => `x${mmX(k)}y${mmY(k)}`).join(', '),
+    btn:'Thêm phun thuốc', chat:'phun cỏ dại', run: queueWeeds });
+  const nWait = pending.filter(it => it.state === 'wait' || it.state === 'fail').length;
+  if (nWait && !runBusy) S.push({ cls:'info', icon:'⏳', title:`${nWait} thao tác đang chờ xác nhận`, sub:'Kiểm tra hàng chờ rồi xác nhận để bot chạy.', btn:'Xác nhận', chat:'xác nhận', run: confirmPending });
+  if (dryW.length) S.push({ cls:'water', icon:'💧', title:`Tưới ${dryW.length} cây chưa được tưới`, sub: dry ? `Đất đang khô (${s.soil.toFixed(0)}%).` : 'Cây mới gieo cần nước để nảy mầm.',
+    btn:'Thêm tưới', chat:'tưới cây chưa tưới', run: () => queueOnSeeds(water, true).added });
+  else if (dry && seeds.length) S.push({ cls:'water', icon:'💧', title:`Đất khô (${s.soil.toFixed(0)}%) – tưới lại ${seeds.length} cây`, sub:'Độ ẩm đất dưới ' + DRY_SOIL + '%.',
+    btn:'Thêm tưới', chat:'tưới tất cả cây', run: () => queueOnSeeds(water, false).added });
+  if (spots.length) S.push({ cls:'sow', icon:'🌱', title:`Gieo ${spots.length} ô còn trống (còn ${spots.length}/${plan.nx * plan.ny} ô)`,
+    sub:(seeds.length ? '' : 'Ruộng còn trống. ') + spots.slice(0, 4).map(p => `x${p.x}y${p.y}`).join(', ') + (spots.length > 4 ? '…' : '') + ' – các vòng ◌ trên ruộng',
+    btn:'Thêm gieo', chat:'gieo ô đề xuất', run: () => { let n = 0; nearestRoute(spots).forEach(p => { if (enqueue(sow, p)) n++; }); return n; } });
+  const ago = lastScanAt ? Math.round((Date.now() - lastScanAt) / 60000) : null;
+  if (ago === null || ago >= 30) S.push({ cls:'scan', icon:'📷', title: ago === null ? 'Chưa dò ruộng lần nào' : `Lần dò gần nhất cách đây ${ago} phút`,
+    sub: (AI.running ? '' : 'Cần bật camera + tải model trước. ') + 'Cho FarmBot đi hình con rắn để tìm cỏ dại / sâu bệnh.',
+    btn:'Dò ngay', chat:'dò toàn ruộng', run: () => { scanRun(); } });
+  if (s && isFinite(s.temperature) && s.temperature > 32) S.push({ cls:'info', icon:'🌡️', title:`Trời nóng (${s.temperature.toFixed(1)}°C)`, sub:'Nên tưới vào sáng sớm hoặc chiều mát để đỡ bay hơi.' });
+  if (s && isFinite(s.humidity) && s.humidity > 85) S.push({ cls:'info', icon:'☁️', title:`Độ ẩm không khí cao (${s.humidity.toFixed(0)}%)`, sub:'Dễ phát sinh nấm bệnh: nên dò ruộng kiểm tra lá.' });
+  if (!S.length) S.push({ cls:'info', icon:'👍', title:'Mọi thứ ổn', sub:'Chưa có việc cần làm ngay.' });
+  return S;
+}
+var suggRaf = 0;
+function renderSuggest(){ if (!suggRaf) suggRaf = requestAnimationFrame(() => { suggRaf = 0; drawSuggest(); }); }
+function drawSuggest(){
+  const L = $('sugglayer'), box = $('sugglist');
+  L.innerHTML = ''; box.innerHTML = '';
+  if (!suggOpen) return;                                   // chỉ tính và hiện khi đã bấm "Đề xuất"
+  const plan = sowPlan(), sx = size(), sy = sizeY();
+  plan.cells.forEach(c => {                                // vẽ các ô: ô còn trống (xanh, nét đứt) và ô đã dùng (mờ)
+    const d = document.createElement('div');
+    d.className = 'scell' + (c.spot ? '' : ' used');
+    const top = isTL() ? c.y0 : sy - c.y0 - plan.ch;
+    d.style.cssText = `left:${c.x0 / sx * 100}%;top:${top / sy * 100}%;width:${plan.cw / sx * 100}%;height:${plan.ch / sy * 100}%`;
+    L.appendChild(d);
+  });
+  plan.spots.forEach(p => {
+    const d = document.createElement('div');
+    d.className = 'sugg'; d.dataset.fx = p.fx; d.dataset.fy = p.fy; d.textContent = '+';
+    d.style.left = (p.fx * 100) + '%'; d.style.top = (p.fy * 100) + '%';
+    d.title = `Nên gieo tại x${p.x} y${p.y} – bấm để thêm vào hàng chờ gieo (khi chưa chọn chức năng)`;
+    L.appendChild(d);
+  });
+  const total = plan.nx * plan.ny;
+  $('suggsum').innerHTML = `Ruộng chia <b>${plan.nx} × ${plan.ny} = ${total} ô</b> (mỗi ô ${Math.round(plan.cw)} × ${Math.round(plan.ch)} mm):<br>` +
+    `🥬 đã gieo / chờ gieo <b>${plan.plantN}</b> · 🌿 có cỏ dại <b>${plan.weedN}</b> · ◌ còn trống <b>${plan.spots.length}</b>` +
+    (plan.blocked ? ` · <span title="Ô trống nhưng quá sát cây ô bên cạnh">⛔ quá sát ${plan.blocked}</span>` : '');
+  getSuggestions(plan).forEach(sg => {
+    const d = document.createElement('div');
+    d.className = 'sg ' + sg.cls;
+    d.innerHTML = `<span class="si">${sg.icon}</span><div class="st2"><b>${esc(sg.title)}</b><small>${esc(sg.sub || '')}</small></div>`;
+    if (sg.btn){
+      const b = document.createElement('button'); b.textContent = sg.btn;
+      b.onclick = () => { const r = sg.run(); if (typeof r === 'number') toast(r ? `Đã thêm ${r} ô vào hàng chờ` : 'Các ô này đã có trong hàng chờ', 'ok'); };
+      d.appendChild(b);
+    }
+    box.appendChild(d);
+  });
+}
+$('sowgap').addEventListener('input', renderSuggest);
+// Nút "Đề xuất": bấm để tính + hiện (danh sách và các ô trên ruộng), bấm lại để ẩn. Khi đang mở thì tự tính lại theo thay đổi.
+function setSuggOpen(v){
+  suggOpen = v;
+  $('suggbody').hidden = !v;
+  $('suggbtn').classList.toggle('open', v);
+  $('suggbtn').textContent = v ? '✕ Ẩn đề xuất' : '💡 Đề xuất ô gieo & việc nên làm';
+  drawSuggest();
+}
+$('suggbtn').onclick = () => setSuggOpen(!suggOpen);
+setInterval(renderSuggest, 60000);   // cập nhật "cách đây … phút"
+
+// =====================================================================================================
+// ===== Trợ lý chat: hiểu lệnh tiếng Việt (có dấu hay không dấu). Mọi thao tác vẫn đi qua HÀNG CHỜ =====
+// Không cần mạng hay model AI: hiểu theo từ khóa + mẫu câu, chạy ngay trong trình duyệt.
+// Riêng "dừng" thì chạy NGAY (dừng khẩn cấp), và thêm chữ "ngay" vào lệnh thì chạy luôn không chờ xác nhận.
+// =====================================================================================================
+const MOVE = TOOLS.find(t => t.id === 'move');   // chức năng "FarmBot": chỉ di chuyển
+// Người dùng gõ "cm" thì đổi sang mm (đơn vị của giao diện): "sâu 2cm" -> "sâu 20mm", "30x30cm" -> "300x300mm"
+const cmToMm = t => t.replace(/(\d+(?:\.\d+)?)\s*[x*×]\s*(\d+(?:\.\d+)?)\s*cm\b/g, (m, a, b) => `${+a * 10}x${+b * 10}mm`)
+                     .replace(/(-?\d+(?:\.\d+)?)\s*cm\b/g, (m, a) => `${Math.round(a * 100) / 10}mm`);
+const toolOf = id => id === 'move' ? MOVE : TOOLS.find(t => t.id === id);
+const ICON = { sow:'🥬', water:'💧', spray:'🧴', move:'🤖', scan:'📷' };
+const VERB_WORD = { sow:'gieo', water:'tưới', spray:'phun', move:'đi tới' };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+// Chuẩn hóa: chữ thường, bỏ dấu (đ -> d), gọn khoảng trắng; giữ dấu chấm thập phân
+const norm = s => String(s).toLowerCase().replace(/đ/g, 'd').normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .replace(/[“”"'`]/g, '').replace(/[!.]+(?=\s|$)/g, '').replace(/\s+/g, ' ').trim();
+const fieldPoint = (x, y) => ({ x, y, fx: x / size(), fy: isTL() ? y / sizeY() : 1 - y / sizeY() });
+const visualPoint = (fx, fy) => ({ fx, fy, x: Math.round(fx * size()), y: Math.round((isTL() ? fy : 1 - fy) * sizeY()) });
+const inField = (x, y) => x >= 0 && y >= 0 && x <= size() && y <= sizeY();
+const botXYZ = () => `x${$('sx').textContent}y${$('sy').textContent}z${$('sz').textContent}`;
+
+// ----- Đọc tọa độ trong câu -----
+function parsePoints(t){
+  const out = []; let m;
+  const reXY = /\bx\s*[=:]?\s*(-?\d+(?:\.\d+)?)\s*[,;]?\s*(?:va\s*)?y\s*[=:]?\s*(-?\d+(?:\.\d+)?)(?:\s*[,;]?\s*z\s*[=:]?\s*(-?\d+(?:\.\d+)?))?/g;
+  while ((m = reXY.exec(t))) out.push({ x:+m[1], y:+m[2], z: m[3] !== undefined ? +m[3] : undefined });
+  if (!out.length){   // "y30 x20"
+    const reYX = /\by\s*[=:]?\s*(-?\d+(?:\.\d+)?)\s*[,;]?\s*(?:va\s*)?x\s*[=:]?\s*(-?\d+(?:\.\d+)?)/g;
+    while ((m = reYX.exec(t))) out.push({ x:+m[2], y:+m[1] });
+  }
+  if (!out.length){   // "(20, 30)" hoặc "(20 30 -2)"
+    const reP = /\(\s*(-?\d+(?:\.\d+)?)\s*[,; ]\s*(-?\d+(?:\.\d+)?)\s*(?:[,; ]\s*(-?\d+(?:\.\d+)?))?\s*\)/g;
+    while ((m = reP.exec(t))) out.push({ x:+m[1], y:+m[2], z: m[3] !== undefined ? +m[3] : undefined });
+  }
+  if (!out.length){   // "tại 20 30", "đi tới 40, 50"
+    const reB = /\b(?:tai|o|diem|vi tri|toa do|toi|den|ve)\s+(\d+(?:\.\d+)?)\s*(?:,|;|\s)\s*(\d+(?:\.\d+)?)\b(?!\s*(?:giay|phut|s\b))/g;
+    while ((m = reB.exec(t))) out.push({ x:+m[1], y:+m[2] });
+  }
+  if (!out.length){   // vị trí gọi tên (theo hướng nhìn trên màn hình)
+    const PL = [[/giua ruong|chinh giua|trung tam|o giua|giua vuon/, .5, .5], [/goc tren (ben )?trai/, 0, 0], [/goc tren (ben )?phai/, 1, 0],
+                [/goc duoi (ben )?trai/, 0, 1], [/goc duoi (ben )?phai/, 1, 1]];
+    for (const [re, fx, fy] of PL) if (re.test(t)){ const v = visualPoint(fx, fy); out.push({ x:v.x, y:v.y }); }
+  }
+  if (!out.length && /\b(home|goc toa do|diem goc|ve goc|ve 0|ve nha|ve diem 0|x0 ?y0)\b/.test(t)) out.push({ x:0, y:0 });
+  return out;
+}
+// "sang phải 10", "lên 20" (theo hướng nhìn trên màn hình, tính từ vị trí bot hiện tại)
+function parseRelative(t){
+  let m, dx = 0, dy = 0, hit = false;
+  const re = /\b(sang trai|qua trai|sang phai|qua phai|len tren|len|xuong duoi|xuong|tien|lui)\s*(\d+(?:\.\d+)?)/g;
+  while ((m = re.exec(t))){
+    hit = true; const v = +m[2], w = m[1];
+    if (/trai/.test(w)) dx -= v; else if (/phai/.test(w)) dx += v; else if (/len|tien/.test(w)) dy -= v; else dy += v;
+  }
+  if (!hit) return null;
+  return visualPoint(Math.min(1, Math.max(0, botPos.fx + dx / size())), Math.min(1, Math.max(0, botPos.fy + dy / sizeY())));
+}
+// Tùy chọn đi kèm: thời gian, độ sâu, khoảng cách, "ngay"
+function parseOpts(t){
+  const o = {}; let m;
+  if ((m = t.match(/(\d+(?:\.\d+)?)\s*(?:giay|sec|s)\b/))) o.sec = +m[1];
+  if ((m = t.match(/(\d+(?:\.\d+)?)\s*phut\b/))) o.sec = +m[1] * 60;
+  if ((m = t.match(/(?:do sau|\bsau)\s*[=:]?\s*(\d+(?:\.\d+)?)(?!\s*(?:giay|phut|sec|s\b))/))) o.depth = +m[1];
+  if ((m = t.match(/(?:cach(?: nhau| deu)?|khoang cach|\bmoi)\s*(\d+(?:\.\d+)?)/))) o.gap = Math.max(2, +m[1]);
+  if (/\b(ngay|luon|lien|lap tuc)\b/.test(t)) o.now = true;
+  return o;
+}
+// Mẫu: "hàng y=40", "cột x=30", "lưới" / "khắp ruộng" + "cách 20cm", "từ 10 đến 90", "5 cây"
+function parsePattern(t, o){
+  let m, xs, ys, label;
+  const gap = o.gap || Math.max(20, +$('sowgap').value || 100);   // mặc định = "Khoảng cách cây" trong thẻ Đề xuất
+  const range = t.match(/\btu\s*[xy]?\s*[=:]?\s*(\d+(?:\.\d+)?)\s*(?:cm\s*)?(?:den|toi|->|-)\s*[xy]?\s*[=:]?\s*(\d+(?:\.\d+)?)/);
+  const cnt = t.match(/\b(\d+)\s*(?:cay|hat|diem|goc)\b/);
+  const seq = len => {
+    let a, b;
+    if (range){ a = +range[1]; b = +range[2]; if (a > b) [a, b] = [b, a]; }
+    else { a = Math.min(gap / 2, len / 2); b = len - a; }
+    if (cnt && !o.gap){
+      const n = Math.min(200, +cnt[1]);
+      if (n <= 1) return [Math.round((a + b) / 2)];
+      return Array.from({ length:n }, (_, i) => Math.round((a + (b - a) * i / (n - 1)) * 10) / 10);
+    }
+    const r = []; for (let v = a; v <= b + 1e-6 && r.length < 400; v += gap) r.push(Math.round(v * 10) / 10);
+    return r;
+  };
+  if ((m = t.match(/\bhang\b(?:\s*ngang)?(?:\s*(?:o|tai|so))?\s*(?:y\s*[=:]?\s*)?(\d+(?:\.\d+)?)/))){
+    const y = (t.match(/\by\s*[=:]?\s*(\d+(?:\.\d+)?)/) || m)[1];
+    ys = [+y]; xs = seq(size()); label = `hàng y=${y}`;
+  } else if ((m = t.match(/\bcot\b(?:\s*doc)?(?:\s*(?:o|tai|so))?\s*(?:x\s*[=:]?\s*)?(\d+(?:\.\d+)?)/))){
+    const x = (t.match(/\bx\s*[=:]?\s*(\d+(?:\.\d+)?)/) || m)[1];
+    xs = [+x]; ys = seq(sizeY()); label = `cột x=${x}`;
+  } else if (/\b(luoi|khap ruong|ca ruong|toan bo ruong|toan ruong|het ruong|kin ruong|ca vuon)\b/.test(t)){
+    xs = seq(size()); ys = seq(sizeY()); label = `lưới ${xs.length}×${ys.length}`;
+  } else return null;
+  const pts = []; ys.forEach(y => xs.forEach(x => pts.push({ x, y })));
+  return { pts, label: label + (cnt && !o.gap ? '' : ` cách ${gap}mm`) };
+}
+const VERBS = [
+  ['sow',   /\b(gieo|sow|seed)\b|\btrong (cay|hat|rau|xa lach|them|moi)\b|^trong\b/],
+  ['water', /\b(tuoi|water)\b/],
+  ['spray', /\b(phun|xit|spray)\b/],
+  ['move',  /\b(di chuyen|di toi|di den|di ra|chay toi|chay den|chay ve|dua bot|move|goto|farmbot)\b|^(den|toi|ve|qua|sang|len|xuong|lui|tien)\b|\bve (home|goc|nha|0|diem)/]
+];
+function verbOf(t){   // động từ xuất hiện SỚM NHẤT trong câu
+  let best = null, bi = 1e9;
+  VERBS.forEach(([id, re]) => { const m = t.match(re); if (m && m.index < bi){ bi = m.index; best = id; } });
+  return best;
+}
+// Tách "tưới x20y30 rồi phun x40y40, về home" thành từng lệnh
+const STARTS = /^(gieo|trong|tuoi|phun|xit|di|chay|ve|den|toi|qua|sang|len|xuong|xac nhan|bat|tat|mo|xoa|bo|huy|sap xep|dat|doi|chinh|sua|phong|thu|hien|an|xem|tiep tuc|tai|ket noi|hoan tac|liet ke|chon|kiem tra|dung)\b/;
+function splitCommands(t){
+  const out = [];
+  t.split(/\s*(?:;|\n|\broi\b|\bsau do\b|\bthen\b|\btiep theo\b|\bxong thi\b)\s*/).forEach(seg => {
+    seg.split(/\s*(?:,|\bva\b|\bvoi\b)\s*/).forEach((p, i) => {
+      if (!p) return;
+      if (i && out.length && !STARTS.test(p)) out[out.length - 1] += ' ' + p; else out.push(p);
+    });
+  });
+  return out.filter(Boolean);
+}
+
+// ----- Giao diện chat -----
+const chat = { open:false, ask:null, unread:0, dryWarned:false, badWarned:false, welcomed:false, hist:[], hi:0 };
+try { chat.hist = JSON.parse(localStorage.getItem('fb_chat_hist') || '[]'); } catch(e){}
+chat.hi = chat.hist.length;
+function chatAdd(who, html, chips){
+  const L = $('chatlog'), d = document.createElement('div');
+  d.className = 'msg ' + who; d.innerHTML = html;
+  if (chips && chips.length){
+    const c = document.createElement('div'); c.className = 'chips';
+    chips.forEach(txt => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'chip2'; b.textContent = txt;
+      b.onclick = () => chatSend(txt); c.appendChild(b);
+    });
+    d.appendChild(c);
+  }
+  L.appendChild(d); L.scrollTop = L.scrollHeight;
+  while (L.children.length > 120) L.firstChild.remove();
+  if (who === 'ai' && !chat.open){
+    chat.unread++; $('chatbadge').textContent = chat.unread; $('chatbadge').hidden = false; $('chatfab').classList.add('ping');
+  }
+}
+const say = (html, chips) => { chatAdd('ai', html, chips); return true; };
+function welcome(){
+  chat.welcomed = true;
+  say('Chào bạn 👋 Mình là <b>trợ lý FarmBot</b>. Gõ lệnh tiếng Việt (có dấu hay không dấu đều được), mình sẽ <b>thêm vào hàng chờ</b>; gõ <code>xác nhận</code> để bot chạy. Gõ <code>dừng</code> bất cứ lúc nào để dừng khẩn cấp.',
+      ['trợ giúp', 'đề xuất', 'dò toàn ruộng', 'gieo ô đề xuất', 'độ ẩm đất?']);
+}
+function sayHelp(){
+  return say(`<b>Mình hiểu các kiểu lệnh này</b> (có dấu hay không đều được; đơn vị <b>mm</b>, gõ "cm" mình tự đổi):<ul>
+<li>💡 <code>đề xuất</code> / <code>nên làm gì</code>, <code>gieo ô đề xuất</code>, <code>phun cỏ dại</code>, <code>cỏ dại ở đâu</code></li>
+<li>🤖 <code>dò toàn ruộng</code>, <code>farmbot tới x150 y150</code>, <code>về home</code>, <code>đi tới giữa ruộng</code>, <code>sang phải 50</code></li>
+<li>🥬💧🧴 <code>gieo x100 y150</code>, <code>tưới (150,150) trong 5 giây</code>, <code>phun x50y50 và x250y100</code>, <code>gieo x100 y100 sâu 10mm</code></li>
+<li>📏 <code>gieo hàng y=150 cách 50mm</code>, <code>gieo cột x=100 từ 50 đến 250</code>, <code>gieo 3 cây hàng y=250</code>, <code>gieo lưới cách 100</code></li>
+<li>🌱 <code>tưới tất cả cây</code>, <code>tưới cây chưa tưới</code>, <code>phun tất cả cây</code>, <code>tưới nếu đất khô</code></li>
+<li>⏳ <code>xác nhận</code>, <code>xem hàng chờ</code>, <code>sửa ô 2 z -10</code>, <code>xóa ô 2</code>, <code>hoàn tác</code>, <code>sắp xếp</code>, <code>xóa hàng chờ</code></li>
+<li>❓ <code>độ ẩm đất?</code>, <code>có cần tưới không</code>, <code>bot đang ở đâu</code>, <code>thống kê</code>, <code>có bao nhiêu xà lách</code></li>
+<li>⚙️ <code>đặt độ sâu 10mm</code>, <code>thời gian tưới 3 giây</code>, <code>ruộng 300x300</code>, <code>gốc tọa độ dưới trái</code>, <code>bật camera</code>, <code>dùng yolo</code>, <code>hiện ô đã tưới</code>, <code>phóng to</code></li>
+</ul>Ghép nhiều lệnh bằng <code>rồi</code> hoặc <code>,</code>. Thêm <code>ngay</code> để chạy luôn không cần xác nhận. <code>dừng</code> = dừng khẩn cấp.`,
+    ['đề xuất', 'dò toàn ruộng', 'xem hàng chờ']);
+}
+// Đề xuất trong chat: cùng nội dung với thẻ "Đề xuất", mỗi việc kèm nút bấm nhanh
+function saySuggest(){
+  setSuggOpen(true);                                       // mở luôn thẻ Đề xuất + hiện các ô trên ruộng
+  const plan = sowPlan(), S = getSuggestions(plan);
+  return say(`💡 <b>Đề xuất</b> <small>(ruộng ${plan.nx}×${plan.ny} = ${plan.nx * plan.ny} ô, còn trống ${plan.spots.length})</small><ul>` + S.map(s => `<li>${s.icon} <b>${esc(s.title)}</b>${s.sub ? '<br><small>' + esc(s.sub) + '</small>' : ''}</li>`).join('') + '</ul>',
+             S.filter(s => s.chat).map(s => s.chat));
+}
+
+// ----- Các xử lý -----
+async function runQueue(){
+  if (halted) return say('🛑 Bot đang dừng khẩn cấp. Gõ <code>tiếp tục</code> trước.', ['tiếp tục']);
+  if (runBusy) return say('Bot đang chạy rồi, đợi lượt này xong nhé.');
+  const n = pending.filter(it => it.state === 'wait' || it.state === 'fail').length;
+  if (!n) return say('Hàng chờ đang trống, chưa có gì để chạy.', ['trợ giúp']);
+  say(`▶️ Bắt đầu thực hiện <b>${n}</b> thao tác… (gõ <code>dừng</code> để dừng khẩn cấp)`);
+  confirmPending().then(r => {
+    if (r) say(r.stopped ? `⛔ Bị dừng sau ${r.done}/${r.total} thao tác. Phần còn lại vẫn nằm trong hàng chờ.` : `✅ Xong ${r.done} thao tác.`,
+               r.stopped ? ['tiếp tục', 'xem hàng chờ'] : ['thống kê']);
+  });
+  return true;
+}
+function queuePoints(tool, pts, o, label){
+  if (pts.length > 60 && !o.big){
+    chat.ask = { yes: () => queuePoints(tool, pts, Object.assign({}, o, { big:true }), label) };
+    return say(`Lệnh này tạo <b>${pts.length}</b> điểm ${tool.n.toLowerCase()}. Thêm hết vào hàng chờ?`, ['có', 'không']);
+  }
+  const ok = [], dup = [], out = []; let flipped = false;
+  pts.forEach(q => {
+    if (!inField(q.x, q.y)){ out.push(q); return; }
+    const p = fieldPoint(Math.round(q.x * 10) / 10, Math.round(q.y * 10) / 10);
+    let z = q.z !== undefined ? q.z : (o.depth !== undefined && !NO_Z(tool.id) ? -o.depth : undefined);
+    if (z !== undefined && !NO_Z(tool.id)){ if (z > 0){ z = -z; flipped = true; } p.z = Math.max(Z_MIN, z); }
+    if (o.sec && (tool.id === 'water' || tool.id === 'spray')) p.sec = Math.min(120, Math.max(0.5, o.sec));
+    (enqueue(tool, p) ? ok : dup).push(p);
+  });
+  const f = q => `x${q.x}y${q.y}` + (q.z ? `z${q.z}` : '');
+  const list = a => a.slice(0, 6).map(q => `<code>${f(q)}</code>`).join(' ') + (a.length > 6 ? ` …(+${a.length - 6})` : '');
+  let h = ok.length ? `${ICON[tool.id]} Đã thêm <b>${ok.length}</b> ô <b>${tool.id === 'move' ? 'di chuyển (FarmBot)' : tool.n.toLowerCase()}</b>${label ? ' (' + label + ')' : ''} vào hàng chờ: ${list(ok)}` : '';
+  if (ok.length && ok[0].sec) h += ` · ${ok[0].sec} giây/ô`;
+  if (flipped) h += '<br><small>Z dương đã đổi thành âm (Z âm = hạ xuống).</small>';
+  if (dup.length) h += `${h ? '<br>' : ''}↩️ ${dup.length} ô đã có sẵn trong hàng chờ: ${list(dup)}`;
+  if (out.length) h += `${h ? '<br>' : ''}⚠️ ${out.length} điểm nằm ngoài ruộng (X 0…${size()}, Y 0…${sizeY()} mm): ${list(out)}`;
+  if (ok.length && o.now){ say(h); return runQueue(); }
+  return say(h || 'Không thêm được ô nào.', ok.length ? ['xác nhận', 'xem hàng chờ', 'hoàn tác'] : []);
+}
+function queueSeedsChat(tool, t, o){
+  if (tool.id === 'sow' || tool.id === 'move') return say(`Lệnh "${VERB_WORD[tool.id]}" cần tọa độ, vd <code>${VERB_WORD[tool.id]} x100 y150</code>.`, tool.id === 'sow' ? ['gieo ô đề xuất'] : []);
+  if (!seeds.length) return say('Chưa có cây nào được gieo nên chưa có gì để ' + VERB_WORD[tool.id] + '.', ['gieo ô đề xuất']);
+  const skip = /chua (tuoi|phun)/.test(t);
+  const r = queueOnSeeds(tool, skip, o.sec ? { sec: Math.min(120, Math.max(0.5, o.sec)) } : null);
+  if (!r.total) return say(`Tất cả cây đều đã ${VERB_WORD[tool.id]} rồi.`, ['thống kê']);
+  const h = r.added ? `${ICON[tool.id]} Đã thêm <b>${r.added}</b> cây vào hàng chờ ${tool.n.toLowerCase()}${skip ? ' (bỏ qua ô đã làm)' : ''}, đã sắp theo đường đi gần nhất.`
+                    : 'Các cây này đã có sẵn trong hàng chờ.';
+  if (o.now && r.added){ say(h); return runQueue(); }
+  return say(h, r.added ? ['xác nhận', 'xem hàng chờ', 'hoàn tác'] : ['xem hàng chờ']);
+}
+function condWater(t, o){
+  const s = lastSensor;
+  if (!s || !isFinite(s.soil)) return say('Chưa đọc được độ ẩm đất nên chưa quyết định được.');
+  const m = t.match(/duoi\s*(\d+)/), lim = m ? +m[1] : DRY_SOIL;
+  if (s.soil >= lim) return say(`💧 Độ ẩm đất <b>${s.soil.toFixed(0)}%</b> (≥ ${lim}%), chưa cần tưới.`);
+  if (!seeds.length) return say(`🌵 Đất khô (${s.soil.toFixed(0)}%) nhưng chưa có cây nào được gieo.`);
+  const r = queueOnSeeds(toolOf('water'), /chua tuoi/.test(t), o.sec ? { sec: Math.min(120, o.sec) } : null);
+  const h = `🌵 Đất khô (<b>${s.soil.toFixed(0)}%</b> &lt; ${lim}%) → đã thêm <b>${r.added}</b> cây vào hàng chờ tưới.`;
+  if (o.now && r.added){ say(h); return runQueue(); }
+  return say(h, r.added ? ['xác nhận', 'xem hàng chờ'] : []);
+}
+function reportSensors(t){
+  const s = lastSensor;
+  if (!s || !isFinite(s.soil)) return say('Chưa có dữ liệu cảm biến: ' + esc($('s-note').textContent));
+  const dry = s.soil < DRY_SOIL;
+  let h = `🌡️ <b>Cảm biến</b>${s.sim ? ' <small>(số mô phỏng)</small>' : ''}<ul>
+<li>💧 Độ ẩm đất: <b>${s.soil.toFixed(0)}%</b>${dry ? ' – <b style="color:var(--warn)">đất khô</b>' : s.soil > 80 ? ' – rất ướt' : ' – ổn'}</li>
+<li>☁️ Độ ẩm không khí: <b>${s.humidity.toFixed(0)}%</b></li>
+<li>🌡️ Nhiệt độ: <b>${s.temperature.toFixed(1)}°C</b>${s.temperature > 32 ? ' – khá nóng' : s.temperature < 15 ? ' – khá lạnh' : ''}</li></ul>`;
+  if (dry) h += seeds.length ? `Nên tưới, có ${seeds.length} cây đã gieo.` : 'Nên tưới, nhưng chưa có cây nào được gieo.';
+  else if (/can tuoi|nen tuoi/.test(t)) h += 'Đất còn đủ ẩm, chưa cần tưới.';
+  return say(h, dry && seeds.length ? ['tưới tất cả cây', 'tưới cây chưa tưới'] : []);
+}
+function reportStats(){
+  const w = pending.length;
+  return say(`📊 <b>Tình hình</b><ul>
+<li>🥬 Đã gieo: <b>${counts.sow}</b> cây</li>
+<li>💧 Đã tưới: <b>${counts.wet}</b> lần (${logs.wet.size} ô)</li>
+<li>🧴 Đã phun: <b>${counts.mist}</b> lần (${logs.mist.size} ô)</li>
+<li>⏳ Hàng chờ: <b>${w}</b> ô${runBusy ? ' · đang chạy' : ''}</li>
+<li>🤖 Bot: ${halted ? '<b style="color:var(--warn)">đang dừng khẩn cấp</b>' : runBusy ? 'đang chạy' : 'sẵn sàng'} tại <code>${botXYZ()}</code></li></ul>`,
+    w ? ['xem hàng chờ', 'xác nhận'] : []);
+}
+function reportAI(){
+  if (!AI.running) return say('Nhận diện chưa chạy. Cần: server nhận diện → tải model → bật camera.', [AI.loaded ? 'bật camera' : 'dùng yolo']);
+  return say(`🧠 Camera đang thấy <b>${$('ai-let').textContent}</b> xà lách và <b>${$('ai-weed').textContent}</b> cỏ dại / sâu bệnh (${$('ai-fps').textContent} khung/giây, model ${esc(aiName(AI.loaded))}).` +
+             (weeds.length ? ` Trên bản đồ đã ghi nhận ${weeds.length} điểm cỏ dại.` : ''), weedsTodo().length ? ['phun cỏ dại'] : []);
+}
+function listQueue(){
+  if (!pending.length) return say('Hàng chờ đang trống. Thử: <code>tưới x100 y150</code>', ['đề xuất', 'trợ giúp']);
+  const rows = pending.slice(0, 15).map((it, i) =>
+    `<li>${PSTATE[it.state]} #${i + 1} ${esc(it.tool.n)} <code>x${it.p.x}y${it.p.y}z${it.p.z}</code>${it.p.sec ? ' · ' + it.p.sec + 's' : ''}</li>`).join('');
+  return say(`⏳ <b>Hàng chờ (${pending.length})</b><ul>${rows}</ul>${pending.length > 15 ? `…và ${pending.length - 15} ô nữa` : ''}`,
+    ['xác nhận', 'sắp xếp', 'hoàn tác', 'xóa hàng chờ']);
+}
+function undoLast(){
+  const it = pending.filter(o => o.state !== 'run').sort((a, b) => b.id - a.id)[0];
+  if (!it) return say('Không có ô nào để hoàn tác.');
+  const i = pending.indexOf(it) + 1;
+  removePending(it.id);
+  return say(`↩️ Đã bỏ ô #${i}: ${esc(it.tool.n)} <code>x${it.p.x}y${it.p.y}</code>.`, pending.length ? ['hoàn tác', 'xem hàng chờ'] : []);
+}
+function removeIdx(str){
+  const ids = [...new Set(str.trim().split(/\s+/).map(Number))].filter(n => n >= 1);
+  const found = ids.map(n => [n, pending[n - 1]]).filter(([, it]) => it);
+  const done = found.filter(([, it]) => it.state !== 'run');
+  done.forEach(([, it]) => dropItem(it)); renderPending();
+  const miss = ids.filter(n => !pending[n - 1] && !found.some(([k]) => k === n));
+  let h = done.length ? `🗑 Đã bỏ ô ${done.map(([n]) => '#' + n).join(', ')} khỏi hàng chờ.` : '';
+  if (found.length > done.length) h += `${h ? '<br>' : ''}Ô đang chạy thì không bỏ được.`;
+  if (miss.length) h += `${h ? '<br>' : ''}Không có ô ${miss.map(n => '#' + n).join(', ')} (hàng chờ có ${pending.length + done.length} ô).`;
+  return say(h || 'Không bỏ được ô nào.', pending.length ? ['xem hàng chờ'] : []);
+}
+function editFields(it, t, o){
+  const res = []; let m;
+  ['x', 'y', 'z'].forEach(k => {
+    if ((m = t.match(new RegExp('\\b' + k + '\\s*(?:=|:|thanh|la)?\\s*(-?\\d+(?:\\.\\d+)?)')))){
+      const r = applyEdit(it, k, +m[1]); res.push(r.ok ? `${k.toUpperCase()}=${it.p[k]}` : '⚠️ ' + r.msg);
+    }
+  });
+  if (o.depth !== undefined && !/\bz\s*[=:]?\s*-?\d/.test(t)){ const r = applyEdit(it, 'z', -o.depth); res.push(r.ok ? `Z=${it.p.z}` : '⚠️ ' + r.msg); }
+  if (o.sec !== undefined && (it.tool.id === 'water' || it.tool.id === 'spray') && it.state !== 'run'){
+    it.p.sec = Math.min(120, Math.max(0.5, o.sec)); res.push(`thời gian ${it.p.sec}s`);
+  }
+  return res;
+}
+function editIdx(n, rest, o){
+  const it = pending[n - 1];
+  if (!it) return say(`Không có ô #${n} trong hàng chờ (đang có ${pending.length} ô).`, pending.length ? ['xem hàng chờ'] : []);
+  const r = editFields(it, rest, o); renderPending();
+  if (!r.length) return say(`Muốn sửa gì ở ô #${n}? Ví dụ: <code>sửa ô ${n} x40 y55</code>, <code>sửa ô ${n} z -3</code>, <code>sửa ô ${n} 5 giây</code>.`);
+  return say(`✏️ Ô #${n} (${esc(it.tool.n)}): ${r.join(', ')} → <code>x${it.p.x}y${it.p.y}z${it.p.z}</code>`, ['xem hàng chờ', 'xác nhận']);
+}
+function editAll(t, o){
+  let n = 0; const notes = new Set();
+  pending.filter(it => it.state !== 'run').forEach(it => {
+    const r = editFields(it, t, o);
+    if (r.some(x => !x.startsWith('⚠️'))) n++;
+    r.filter(x => x.startsWith('⚠️')).forEach(x => notes.add(x));
+  });
+  renderPending();
+  return say(`✏️ Đã sửa <b>${n}</b> ô trong hàng chờ.` + (notes.size ? '<br>' + [...notes].slice(0, 3).join('<br>') : ''), ['xem hàng chờ', 'xác nhận']);
+}
+function setVal(id, v){
+  const e = $(id); e.value = v;
+  e.dispatchEvent(new Event('input', { bubbles:true })); e.dispatchEvent(new Event('change', { bubbles:true }));
+}
+function trySettings(t, o){   // trả về true nếu đã xử lý
+  let m;
+  if (/do sau/.test(t)){
+    const v = o.depth !== undefined ? o.depth : (m = t.match(/(\d+(?:\.\d+)?)/)) ? +m[1] : null;
+    if (v === null) return say(`Độ sâu gieo mặc định đang là <b>${$('depth').value} mm</b>. Đổi: <code>đặt độ sâu 10mm</code>`);
+    setVal('depth', Math.min(-Z_MIN, Math.abs(v)));
+    return say(`✅ Độ sâu gieo mặc định: <b>${$('depth').value} mm</b>. Ô gieo mới sẽ có Z = −${$('depth').value}; ô đang chờ giữ Z cũ.`,
+      pending.some(it => it.tool.id === 'sow') ? [`đặt độ sâu ${$('depth').value} cho tất cả ô`] : []);
+  }
+  if (/tuoi|phun/.test(t) && (o.sec !== undefined || /thoi gian/.test(t))){
+    const id = /phun/.test(t) ? 'psec' : 'wsec', w = id === 'psec' ? 'phun' : 'tưới';
+    if (o.sec === undefined) return say(`Thời gian ${w} mặc định đang là <b>${$(id).value} giây</b>.`);
+    setVal(id, Math.min(120, Math.max(0.5, o.sec)));
+    return say(`✅ Thời gian ${w} mặc định: <b>${$(id).value} giây</b> cho mỗi ô.`);
+  }
+  if ((m = t.match(/(\d+)\s*(?:x|\*|×|nhan)\s*(\d+)/)) && /ruong|kich thuoc|\bkt\b|vuon/.test(t)){
+    setVal('size', Math.min(5000, Math.max(50, +m[1]))); setVal('sizey', Math.min(5000, Math.max(50, +m[2])));
+    return say(`✅ Kích thước ruộng: <b>${size()} × ${sizeY()} mm</b>. Ô đang chờ giữ nguyên vị trí trên bản đồ.`);
+  }
+  if ((m = t.match(/chieu dai\s*(?:ruong\s*)?(?:la|=)?\s*(\d+)/))){ setVal('size', Math.min(5000, Math.max(50, +m[1]))); return say(`✅ Chiều dài (trục X): <b>${size()} mm</b>.`); }
+  if ((m = t.match(/chieu rong\s*(?:ruong\s*)?(?:la|=)?\s*(\d+)/))){ setVal('sizey', Math.min(5000, Math.max(50, +m[1]))); return say(`✅ Chiều rộng (trục Y): <b>${sizeY()} mm</b>.`); }
+  if (/buoc quet|buoc do/.test(t) && (m = t.match(/(\d+)/))){ setVal('scancell', Math.max(5, +m[1])); scanInfo(); return say(`✅ Cỡ ô dò: <b>${$('scancell').value} mm</b> (${$('scaninfo').textContent}).`); }
+  if (/camera nhin|vung camera|fov/.test(t) && (m = t.match(/(\d+)/))){ setVal('camfov', +m[1]); return say(`✅ Camera nhìn rộng <b>${$('camfov').value} mm</b> trên mặt đất.`); }
+  if (/khoang cach cay|cach cay/.test(t) && (m = t.match(/(\d+)/))){ setVal('sowgap', Math.max(20, +m[1])); return say(`✅ Khoảng cách cây đề xuất: <b>${$('sowgap').value} mm</b>.`, ['đề xuất']); }
+  if (/goc toa do|goc 0|diem 0/.test(t) && /tren|duoi/.test(t)){
+    setVal('origin', /duoi/.test(t) ? 'bl' : 'tl');
+    return say(`✅ Gốc tọa độ (0,0): <b>${isTL() ? 'trên trái' : 'dưới trái'}</b>.`);
+  }
+  if (/nguong/.test(t) && (m = t.match(/(\d+(?:\.\d+)?)/))){
+    let v = +m[1]; if (v > 1) v /= 100; v = Math.min(.9, Math.max(.05, Math.round(v * 20) / 20));
+    $('aithr').value = Math.round(v * 100); $('aithr').oninput({ target: $('aithr') });
+    return say(`✅ Ngưỡng tin cậy nhận diện: <b>${v.toFixed(2)}</b> (thấp = bắt được nhiều hơn, dễ nhận nhầm hơn).`);
+  }
+  if (/phan giai/.test(t) && (m = t.match(/\b(352|480|640|704)\b/))){
+    $('aisize').value = m[1]; $('aisize').onchange({ target: $('aisize') });
+    return say(`✅ Độ phân giải nhận diện: <b>${m[1]}</b>.`);
+  }
+  return false;
+}
+async function chatLoadModel(t){
+  if (!AI.models.length && !(await aiConnect(true)))
+    return say('⚠️ Chưa kết nối được server nhận diện. Hãy chạy <code>start_detect_server.bat</code> rồi gõ <code>kết nối server</code>.');
+  const pick = /yolo|nhanh/.test(t) ? 'yolo' : /co dai|ca hai|2 lop|hai lop|both/.test(t) ? 'dino-both' : /dino|chi xa lach|chinh xac/.test(t) ? 'dino-lettuce' : null;
+  const m = AI.models.find(x => x.id === pick);
+  if (!m) return say('Có các model: ' + AI.models.map(x => '<b>' + esc(x.name) + '</b>').join(', ') + '. Chọn một:',
+    AI.models.filter(x => x.available).map(x => x.id === 'yolo' ? 'dùng yolo' : x.id === 'dino-both' ? 'dùng model cỏ dại' : 'dùng dino chỉ xà lách'));
+  if (!m.available) return say(`⚠️ Server thiếu file của model ${esc(m.name)}.`);
+  $('aimodel').value = m.id;
+  say(`⏳ Đang tải <b>${esc(m.name)}</b>…`);
+  await aiLoad();
+  return AI.loaded === m.id ? say(`✅ Đã tải ${esc(m.name)}.` + (camOn ? ' Đang nhận diện trên camera.' : ''), camOn ? [] : ['bật camera'])
+                            : say('⚠️ ' + esc($('aistatus').textContent));
+}
+// Cảm biến báo đất khô -> trợ lý nhắc (mỗi lần khô chỉ nhắc 1 lần)
+function chatOnSensor(s){
+  if (!isFinite(s.soil)) return;
+  if (s.soil < DRY_SOIL && !chat.dryWarned){
+    chat.dryWarned = true;
+    say(`🌵 Đất đang khô: độ ẩm <b>${s.soil.toFixed(0)}%</b> (dưới ${DRY_SOIL}%).` + (seeds.length ? ` Có ${seeds.length} cây đã gieo.` : ''),
+        seeds.length ? ['tưới tất cả cây', 'tưới cây chưa tưới'] : ['độ ẩm đất?']);
+  } else if (s.soil > DRY_SOIL + 5) chat.dryWarned = false;
+}
+
+// ----- Bộ hiểu một lệnh -----
+async function handleOne(t){
+  const o = parseOpts(t);
+  let v = verbOf(t), m;
+  const q = /\?|bao nhieu|\bmay\b|the nao|ra sao|o dau|khong\s*\??$|chua\s*\??$|la gi/.test(t);
+
+  if (/^(xin )?chao\b|^(hello|hi|hey|alo)\b/.test(t)) return welcome();
+  if (/^(cam on|thank|thanks|tks)/.test(t)) return say('Không có gì 🌱 Cần gì cứ gõ nhé.');
+  if (/^(help|giup|tro giup|huong dan|menu|lenh|cac lenh)\b|^\?$|(ban|may|em|tro ly) (lam|biet|hieu) (duoc )?(gi|nhung gi|lenh gi)/.test(t)) return sayHelp();
+  if (/^(tiep tuc|resume|chay tiep|bo dung|mo khoa|huy dung)\b/.test(t)){
+    if (!halted) return say('Bot đang không bị dừng.');
+    $('estop').click();
+    return say('▶️ Đã bỏ trạng thái dừng. Hãy kiểm tra vị trí bot thật trước khi chạy tiếp.', pending.length ? ['xác nhận', 'xem hàng chờ'] : []);
+  }
+  // Chọn / bỏ chọn chức năng trên bảng bên trái
+  if (/^(bo chon|huy chon)\b/.test(t)){ if (current) select(current); return say('Đã bỏ chọn chức năng. Bấm ruộng giờ chỉ để xem tọa độ.'); }
+  if (/^chon\b/.test(t) && v && v !== 'move'){
+    const tool = toolOf(v); if (current !== tool) select(tool);
+    return say(`👆 Đã chọn <b>${tool.n}</b>. Bấm vào ruộng để thêm ô vào hàng chờ.`);
+  }
+  // Chạy hàng chờ
+  if (/^(xac nhan|chay|bat dau|thuc hien|start|run|go|lam di|tien hanh|ok chay)\b/.test(t)){
+    if (!v || v === 'move' && !parsePoints(t).length && !parseRelative(t)) return runQueue();
+    o.now = true;   // "thực hiện tưới tất cả cây" = thêm rồi chạy luôn
+  }
+  // Hàng chờ
+  if (/hoan tac|\bundo\b|(xoa|bo|huy) (o |cai |lenh )?(cuoi|vua (them|roi|xong|nay))/.test(t)) return undoLast();
+  if (/^(xoa|huy|bo|don)( sach| het| tat ca| toan bo)?( cac o)? ?(hang cho|danh sach cho|cac o (dang )?cho)\b|^(xoa|huy) (het|tat ca)$/.test(t)){
+    if (runBusy) return say('Đang chạy nên chưa xóa hàng chờ được. Gõ <code>dừng</code> nếu cần dừng gấp.');
+    const n = pending.length; clearPending();
+    return say(n ? `🗑 Đã xóa ${n} ô khỏi hàng chờ.` : 'Hàng chờ vốn đang trống.');
+  }
+  if ((m = t.match(/^(?:xoa|bo|huy)\s*(?:o|muc|so|lenh)?\s*(?:so\s*)?#?\s*(\d+(?:\s+\d+)*)$/))) return removeIdx(m[1]);
+  if (/^(sua|doi|chinh|dat|cap nhat|thay doi)\b/.test(t) && (m = t.match(/(?:\bo|\bmuc|#)\s*(?:so\s*)?#?(\d+)\b/))) return editIdx(+m[1], t.replace(m[0], ' '), o);
+  if (pending.length && !v && /(tat ca|het|moi|cac|toan bo) (cac )?(o|muc)\b|cho (tat ca|het|moi o)\b/.test(t) &&
+      (/\b[xyz]\s*[=:]?\s*-?\d/.test(t) || o.depth !== undefined || o.sec !== undefined)) return editAll(t, o);
+  if (/sap xep|toi uu (duong|lo trinh|hanh trinh)/.test(t)){
+    if (runBusy) return say('Đang chạy, chưa sắp xếp được.');
+    if (pending.length < 2) return say('Cần ít nhất 2 ô trong hàng chờ để sắp xếp.');
+    sortPending(); return say('↕️ Đã sắp xếp hàng chờ theo đường đi gần nhất.', ['xem hàng chờ', 'xác nhận']);
+  }
+  if (/hang cho|danh sach cho|dang cho|cho thuc hien/.test(t) && !v) return listQueue();
+  // Đề xuất / dò ruộng / gieo theo đề xuất / phun cỏ dại
+  if (/de xuat|goi y|nen lam gi|lam gi (tiep|bay gio|tiep theo)|viec (tiep theo|can lam)|buoc tiep/.test(t) && !/gieo|phun|tuoi/.test(t)) return saySuggest();
+  if (/^(cho )?(farmbot |bot )?(do|quet|scan|soi)\b(?! sau| am| phan)|hinh (con )?ran|\b(do|quet|soi) (toan bo |het |ca |khap )?(ruong|vuon)\b/.test(t)){
+    if (/buoc/.test(t) && /\d/.test(t)){ const r = trySettings(t, o); if (r) return; }
+    if (scanning) return say('Bot đang dò rồi. Gõ <code>dừng dò</code> để dừng.', ['dừng dò']);
+    if (halted || runBusy) return say(halted ? '🛑 Bot đang dừng khẩn cấp. Gõ <code>tiếp tục</code> trước.' : 'Bot đang chạy hàng chờ, đợi xong rồi dò.', halted ? ['tiếp tục'] : []);
+    const rt = scanRoute();
+    say(`🐍 Bắt đầu dò toàn ruộng: <b>${rt.pts.length}</b> điểm, hình con rắn (${rt.nx} × ${rt.ny}). Gõ <code>dừng dò</code> để dừng.` +
+        (AI.running ? '' : '<br><small>⚠️ Nhận diện AI chưa chạy: cần tải model + bật camera thì mới tìm được cỏ dại.</small>'), ['dừng dò']);
+    scanRun().then(r => say((r.found ? '⚠️ ' : r.ok ? '✅ ' : '⛔ ') + esc(r.msg) + '.', r.found ? ['phun cỏ dại', 'cỏ dại ở đâu'] : ['đề xuất']));
+    return;
+  }
+  if (v === 'sow' && /de xuat|o trong|cho trong|goi y/.test(t)){
+    const spots = sowSpots(), sowT = toolOf('sow');
+    if (!spots.length) return say('Hiện không còn ô trống nên gieo (theo khoảng cách cây ' + ($('sowgap').value) + ' mm).', ['đề xuất']);
+    const z = o.depth !== undefined ? { z: -Math.abs(o.depth) } : {};
+    let n = 0; nearestRoute(spots).forEach(p => { if (enqueue(sowT, Object.assign(p, z))) n++; });
+    const h = `🌱 Đã thêm <b>${n}</b> ô gieo theo đề xuất (cách ${$('sowgap').value} mm): ` + spots.slice(0, 6).map(p => `<code>x${p.x}y${p.y}</code>`).join(' ');
+    if (o.now && n){ say(h); return runQueue(); }
+    return say(h, ['xác nhận', 'xem hàng chờ', 'hoàn tác']);
+  }
+  if (v === 'spray' && /co dai|sau benh|cho co|diem co|\bsau\b(?! \d)/.test(t)){
+    if (!weeds.length) return say('Chưa có điểm cỏ dại nào được ghi nhận. Hãy cho FarmBot dò ruộng trước (cần bật camera + model).', ['dò toàn ruộng']);
+    const n = queueWeeds();
+    const h = n ? `🧴 Đã thêm <b>${n}</b> điểm phun thuốc vào chỗ có cỏ dại / sâu bệnh.` : 'Các điểm cỏ dại đều đã phun hoặc đã có trong hàng chờ.';
+    if (o.now && n){ say(h); return runQueue(); }
+    return say(h, n ? ['xác nhận', 'xem hàng chờ'] : ['đề xuất']);
+  }
+  if (/co dai|sau benh/.test(t) && /o dau|cho nao|vi tri|ban do|danh sach|bao nhieu diem/.test(t) && !v){
+    if (!weeds.length) return say('Chưa ghi nhận cỏ dại nào trên bản đồ. Cho FarmBot dò ruộng để tìm.', ['dò toàn ruộng']);
+    return say(`🌿 <b>${weeds.length}</b> điểm cỏ dại / sâu bệnh đã ghi nhận:<ul>` +
+      weeds.slice(0, 12).map(k => `<li><code>x${mmX(k)}y${mmY(k)}</code> · thấy ${k.n} lần${k.done ? ' · ✓ đã phun' : ''}</li>`).join('') + '</ul>',
+      weedsTodo().length ? ['phun cỏ dại'] : []);
+  }
+  // Cài đặt
+  if (/^(dat|doi|chinh|set|cai|cai dat|thay doi|sua)\b|^(do sau|thoi gian|kich thuoc|ruong|vuon|chieu dai|chieu rong|goc toa do|nguong|do phan giai|buoc quet|camera nhin|khoang cach cay)\b/.test(t)){
+    if (trySettings(t, o)) return;
+  }
+  // Camera / AI / lớp hiển thị / khung nhìn / bản đồ
+  const on = /\b(bat|mo|khoi dong|hien|xem)\b/.test(t), off = /\b(tat|dong|an|ngung)\b(?! ca)/.test(t);
+  if (/\b(camera|cam|webcam)\b/.test(t) && (on || off)){
+    if (off && !on){ camStop(); return say('📷 Đã tắt camera.'); }
+    if (!camOn) await camStart();
+    return say(camOn ? '📷 Đã bật camera.' + (AI.loaded && $('aion').checked ? ' AI đang nhận diện.' : '') : '⚠️ ' + esc(camhint.textContent));
+  }
+  if (/(tai|load|dung|chon|doi|chuyen)( sang| qua)? (model|mo hinh)|\b(tai|dung|chon|chuyen sang) (yolo|dino)\b/.test(t)) return chatLoadModel(t);
+  if (/ket noi/.test(t) && /server|\bai\b|nhan dien|model|mo hinh/.test(t)){
+    const ok = await aiConnect(false);
+    return say((ok ? '🔌 ' : '⚠️ ') + esc($('aistatus').textContent));
+  }
+  if (/nhan dien|detect|\bai\b/.test(t) && (on || off) && !/xa lach|co dai/.test(t)){
+    const e = $('aion'); e.checked = !off; e.dispatchEvent(new Event('change'));
+    return say(e.checked ? '🧠 Đã bật tự nhận diện' + (AI.loaded ? (camOn ? '.' : ', bật camera để bắt đầu.') : ', nhưng chưa tải model.') : '🧠 Đã tắt nhận diện.',
+               e.checked && !AI.loaded ? ['dùng yolo'] : e.checked && !camOn ? ['bật camera'] : []);
+  }
+  if (/(o|lop|vung|cho|noi) da (tuoi|phun)|lop (tuoi|phun|nuoc|thuoc)/.test(t) && (on || off)){
+    const id = /phun|thuoc/.test(t) ? 'mistshow' : 'wetshow', e = $(id);
+    e.checked = !off; e.dispatchEvent(new Event('change'));
+    return say(`🗺️ Đã ${e.checked ? 'hiện' : 'ẩn'} lớp ô đã ${id === 'mistshow' ? 'phun' : 'tưới'}.`);
+  }
+  if (/phong to|zoom in|\bto len\b/.test(t)){ zoomBy(1.3); return say('🔍 Đã phóng to.'); }
+  if (/thu nho|zoom out|\bnho lai\b/.test(t)){ zoomBy(1 / 1.3); return say('🔍 Đã thu nhỏ.'); }
+  if (/(xem|hien) (toan bo|ca|het) (ruong|ban do)|dat lai (khung nhin|ban do|zoom)|reset (view|zoom|khung nhin)/.test(t)){ $('zreset').click(); return say('🗺️ Đã đưa khung nhìn về ban đầu.'); }
+  if (/xoa (dau vet|ban do|het (dau vet|ruong|cay))|lam moi (ruong|ban do)|reset (ruong|ban do)/.test(t)){
+    chat.ask = { yes: () => { clearMap(); return say('🧹 Đã xóa dấu vết trên bản đồ (bot thật không bị ảnh hưởng).'); } };
+    return say('Xóa toàn bộ cây đã gieo, vết tưới/phun và bộ đếm trên bản đồ? Không hoàn tác được.', ['có', 'không']);
+  }
+  // Câu hỏi
+  if (v === 'water' && /\b(neu|khi)\b/.test(t) && /kho|thieu nuoc|duoi \d/.test(t)) return condWater(t, o);
+  if (/do am|nhiet do|cam bien|thoi tiet|moi truong|khong khi|\bdat (co |dang |bi )?(kho|uot|am)\b|nong (khong|qua)|lanh (khong|qua)|can tuoi|nen tuoi/.test(t) &&
+      (!v || q || /can tuoi|nen tuoi/.test(t))) return reportSensors(t);
+  if (/\b(bot|robot|may)\b.*\b(o dau|dang o|vi tri|toa do)|vi tri (bot|hien tai|cua bot)|dang o dau|^o dau/.test(t)){
+    return say(`🤖 Bot đang ở <code>${botXYZ()}</code>${halted ? ' · <b style="color:var(--warn)">đang dừng khẩn cấp</b>' : runBusy ? ' · đang chạy' : ''}.`);
+  }
+  if (/thong ke|tong ket|bao cao|tinh hinh|trang thai/.test(t) || (/bao nhieu|\bmay\b/.test(t) && /\b(gieo|tuoi|phun|cay|hat)\b/.test(t) && !/xa lach|co dai/.test(t)))
+    return reportStats();
+  if (/xa lach|co dai/.test(t) && (q || /dem|phat hien|nhan dien|thay/.test(t)) && !v) return reportAI();
+  if (/may gio|gio la may|hom nay (la )?ngay/.test(t) && !v)
+    return say('🕒 ' + new Date().toLocaleString('vi-VN', { weekday:'long', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }));
+  // Thao tác: gieo / tưới / phun / di chuyển
+  if (v){
+    const tool = toolOf(v);
+    if (v === 'move'){
+      const rel = parseRelative(t), pts = rel ? [rel] : parsePoints(t);
+      if (!pts.length) return say('Đi tới đâu? Ví dụ: <code>đi tới x50 y50</code>, <code>về home</code>, <code>sang phải 10</code>.', ['về home', 'đi tới giữa ruộng']);
+      return queuePoints(tool, pts, o, rel ? 'tính từ vị trí bot' : '');
+    }
+    if (/(tat ca|het|toan bo|moi|cac|nhung|ca) (cac )?(cay|goc|hat da gieo|cay da gieo|cay trong)|\btu dong\b|cay (chua|can) (tuoi|phun)|cay da gieo|ca vuon/.test(t))
+      return queueSeedsChat(tool, t, o);
+    const pat = parsePattern(t, o);
+    if (pat) return queuePoints(tool, pat.pts, o, pat.label);
+    const pts = parsePoints(t);
+    if (pts.length) return queuePoints(tool, pts, o);
+    if (current !== tool) select(tool);
+    return say(`👆 Đã chọn <b>${tool.n}</b>, bấm vào ruộng để thêm ô. Hoặc gõ tọa độ, vd <code>${VERB_WORD[v]} x100 y150</code>` +
+               (v === 'sow' ? ', <code>gieo ô đề xuất</code>, <code>gieo hàng y=150 cách 50mm</code>.' : `, <code>${VERB_WORD[v]} tất cả cây</code>.`));
+  }
+  // Có tọa độ nhưng không nói làm gì
+  const pts = parsePoints(t);
+  if (pts.length){
+    const c = `x${pts[0].x} y${pts[0].y}`;
+    return say(`Bạn muốn làm gì tại <code>${c}</code>?`, [`gieo ${c}`, `tưới ${c}`, `phun ${c}`, `đi tới ${c}`]);
+  }
+  return say('🤔 Mình chưa hiểu câu này. Gõ <code>trợ giúp</code> để xem các lệnh, hoặc thử:', ['trợ giúp', 'tưới tất cả cây', 'độ ẩm đất?', 'xem hàng chờ']);
+}
+async function interpret(raw){
+  const t = cmToMm(norm(raw));
+  // "dừng dò" khi đang dò: chỉ dừng lượt dò (bot đứng lại ở điểm hiện tại), không phải E-STOP
+  if (/^(dung|ngung|thoi|huy|stop) (do|quet|scan)\b/.test(t)){
+    if (!scanning) return say('Không có lượt dò nào đang chạy.');
+    scanAbort = true;
+    return say('⏹ Đang dừng dò, bot sẽ đứng lại ở điểm hiện tại.');
+  }
+  // DỪNG KHẨN CẤP: ưu tiên tuyệt đối, bỏ qua mọi phần khác của câu
+  if (/dừng|ngừng|khẩn cấp|e-?stop|\bstop\b|\bhalt\b/i.test(raw) || /^(dung|ngung|khan cap)( lai| ngay| bot| may| het| lap tuc)*$/.test(t)){
+    if (!halted) $('estop').click();
+    return say('🛑 <b>Đã dừng khẩn cấp.</b> Thao tác đang chạy bị ngắt, phần còn lại vẫn nằm trong hàng chờ.', ['tiếp tục', 'xem hàng chờ']);
+  }
+  if (chat.ask){   // đang chờ trả lời "có / không"
+    const a = chat.ask; chat.ask = null;
+    if (/^(co|ok|oke|okay|dong y|chac chan|yes|uh|um|duoc|lam di|xac nhan|chac)\b/.test(t)) return a.yes();
+    if (/^(khong|ko|k|thoi|huy|no|bo qua)\b/.test(t)) return say('Đã hủy.');
+  }
+  for (const piece of splitCommands(t)) await handleOne(piece);
+}
+async function chatSend(text){
+  const raw = String(text || '').trim(); if (!raw) return;
+  chatAdd('me', esc(raw));
+  if (chat.hist[chat.hist.length - 1] !== raw){ chat.hist.push(raw); chat.hist = chat.hist.slice(-50); }
+  chat.hi = chat.hist.length;
+  try { localStorage.setItem('fb_chat_hist', JSON.stringify(chat.hist)); } catch(e){}
+  const L = $('chatlog'), typing = document.createElement('div');
+  typing.className = 'msg ai typing'; typing.innerHTML = '<span></span><span></span><span></span>';
+  L.appendChild(typing); L.scrollTop = L.scrollHeight;
+  await sleep(260); typing.remove();
+  try { await interpret(raw); } catch(err){ say('⚠️ Lỗi khi xử lý lệnh: ' + esc(err.message)); }
+}
+function chatOpen(v){
+  chat.open = v; $('chat').hidden = !v; $('chatfab').setAttribute('aria-expanded', v);
+  if (v){
+    chat.unread = 0; $('chatbadge').hidden = true; $('chatfab').classList.remove('ping');
+    if (!chat.welcomed) welcome();
+    setTimeout(() => $('chatin').focus(), 30);
+  }
+}
+$('chatfab').onclick = () => chatOpen(!chat.open);
+$('chatclose').onclick = () => chatOpen(false);
+$('chatform').onsubmit = e => { e.preventDefault(); const v = $('chatin').value; $('chatin').value = ''; chatSend(v); };
+$('chatin').addEventListener('keydown', e => {   // ↑ / ↓: gọi lại lệnh đã gõ
+  if (e.key === 'ArrowUp' && chat.hi > 0){ e.preventDefault(); $('chatin').value = chat.hist[--chat.hi]; }
+  else if (e.key === 'ArrowDown' && chat.hi < chat.hist.length){ e.preventDefault(); chat.hi++; $('chatin').value = chat.hist[chat.hi] || ''; }
+});
+// Phím tắt: "/" mở trợ lý, Esc đóng trợ lý / bỏ chọn chức năng
+document.addEventListener('keydown', e => {
+  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test((document.activeElement || {}).tagName);
+  if (e.key === 'Escape'){ if (chat.open) chatOpen(false); else if (current) select(current); }
+  else if (e.key === '/' && !typing){ e.preventDefault(); chatOpen(true); }
+});
+// Nói lệnh bằng giọng (Chrome / Edge; cần quyền micro và có mạng)
+(() => {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+  const mic = $('chatmic'); mic.hidden = false;
+  let rec = null;
+  mic.onclick = () => {
+    if (rec){ rec.stop(); return; }
+    rec = new SR(); rec.lang = 'vi-VN'; rec.interimResults = true; rec.maxAlternatives = 1;
+    let final = false;
+    rec.onresult = e => {
+      let s = '';
+      for (let i = 0; i < e.results.length; i++){ s += e.results[i][0].transcript; if (e.results[i].isFinal) final = true; }
+      $('chatin').value = s;
+    };
+    rec.onerror = e => { if (e.error !== 'no-speech' && e.error !== 'aborted') say('🎤 Không nghe được (' + esc(e.error) + '). Cần cho phép micro và có kết nối mạng.'); };
+    rec.onend = () => {
+      mic.classList.remove('on'); rec = null;
+      const v = $('chatin').value.trim();
+      if (final && v){ $('chatin').value = ''; chatSend(v); }
+    };
+    mic.classList.add('on'); rec.start();
+  };
+})();
+
+renderSeeds();
+renderPending();
+</script>
+</body>
+</html>

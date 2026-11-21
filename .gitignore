@@ -1,0 +1,12 @@
+# Môi trường Python (tạo ra khi chạy 1_CAI_DAT.bat)
+.venv/
+__pycache__/
+*.pyc
+
+# Model DINO quá lớn cho Git (657 MB/file) -> tải ở mục Releases của repo
+models/*/model.safetensors
+models/*.safetensors
+
+# Ảnh chụp từ webcam, file tạm
+snapshot_*.jpg
+*.log

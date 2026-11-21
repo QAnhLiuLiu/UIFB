@@ -1,0 +1,65 @@
+﻿FARMBOT UI + NHẬN DIỆN XÀ LÁCH / CỎ DẠI
+========================================
+
+Thư mục này chứa đủ để chạy giao diện điều khiển FarmBot kèm nhận diện cây bằng AI
+trên máy Windows của bạn.
+
+YÊU CẦU
+-------
+- Windows 10/11 64-bit.
+- Python 3.14: tải tại https://www.python.org/downloads/
+  Khi cài, nhớ tick ô "Add python.exe to PATH".
+- Có mạng internet cho lần cài đặt đầu tiên (tải khoảng 3 GB thư viện).
+- Nên có card đồ họa NVIDIA (đã cài driver). Không có thì vẫn chạy bằng CPU:
+  model YOLO dùng được, model DINO sẽ rất chậm.
+- Trình duyệt Chrome hoặc Edge.
+
+MODEL DINO
+----------
+Nếu tải từ GitHub: 2 file model DINO nằm ở mục Releases của repo (dino_chi_xa_lach.safetensors,
+dino_xa_lach_co_dai.safetensors). Chép cả 2 vào thư mục models, 2_CHAY.bat tự xếp vào đúng chỗ.
+
+CÀI ĐẶT (chỉ làm 1 lần)
+-----------------------
+1. Bấm đúp 1_CAI_DAT.bat và chờ đến khi hiện "CAI DAT XONG" (khoảng 10–30 phút tùy mạng).
+
+CHẠY
+----
+2. Bấm đúp 2_CHAY.bat. Một cửa sổ đen hiện ra (đó là server, đừng tắt), sau vài giây
+   trình duyệt tự mở http://127.0.0.1:8001/
+   Nếu trang báo không kết nối được thì đợi thêm vài giây rồi bấm F5.
+3. Trong trang, ở thẻ "🧠 Mô hình nhận diện":
+   - Chọn model:
+       YOLO – chỉ xà lách (nhanh)         : nhẹ, chạy được cả máy không có GPU
+       DINO – chỉ xà lách (chính xác)     : cần GPU NVIDIA
+       DINO – xà lách + cỏ dại            : cần GPU NVIDIA, có khung đỏ cho cỏ dại
+   - Bấm "Tải model" (DINO mất vài giây).
+4. Ở thẻ "📷 Camera thực tế" bấm "Bật camera" và cho phép trình duyệt dùng camera.
+   Cây sẽ được đóng khung ngay trên hình camera.
+5. Muốn tắt: đóng cửa sổ đen.
+
+Lưu ý: mở trang qua địa chỉ http://127.0.0.1:8001/ (do 2_CHAY.bat mở). Mở thẳng file
+index.html vẫn dùng được giao diện, nhưng phải bấm "Kết nối" ở thẻ Mô hình nhận diện.
+
+GIAO DIỆN ĐANG Ở CHẾ ĐỘ MÔ PHỎNG
+--------------------------------
+Mặc định giao diện chỉ mô phỏng, chưa gửi lệnh tới bot thật. Muốn nối bot thật thì mở
+index.html bằng trình soạn thảo, điền địa chỉ server của bot vào dòng
+    const BOT_URL = '';
+(và SENSOR_URL nếu có cảm biến), rồi tải lại trang.
+Cách dùng giao diện: bấm 💬 ở góc phải dưới rồi gõ "trợ giúp".
+
+CÁC FILE
+--------
+index.html                 giao diện
+server\                    server nhận diện (Python)
+models\                    3 model đã huấn luyện (YOLO, DINO chỉ xà lách, DINO xà lách + cỏ dại)
+requirements.txt           danh sách thư viện
+.venv\                     (tạo ra khi cài đặt) môi trường Python riêng, xóa đi là gỡ cài đặt
+
+LỖI THƯỜNG GẶP
+--------------
+- "Chua co Python 3.14": cài Python 3.14 (tick "Add python.exe to PATH") rồi chạy lại 1_CAI_DAT.bat.
+- Tải model DINO báo hết bộ nhớ (out of memory): card đồ họa không đủ VRAM, dùng YOLO.
+- Không thấy camera: kiểm tra quyền camera của trình duyệt, chọn đúng camera trong danh sách.
+- Cổng 8001 đang bị dùng: tắt server cũ (cửa sổ đen cũ) rồi chạy lại.
